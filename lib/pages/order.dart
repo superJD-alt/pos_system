@@ -80,17 +80,17 @@ class OrderPage extends StatelessWidget {
                               icon: Icon(Icons.note),
                               label: Text('NOTA'),
                               style: ButtonStyle(
-                                minimumSize: MaterialStateProperty.all(
-                                  Size(150, 50),
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(130, 50),
                                 ),
-                                backgroundColor: MaterialStateProperty.all(
+                                backgroundColor: WidgetStateProperty.all(
                                   Colors.white,
                                 ),
-                                foregroundColor: MaterialStateProperty.all(
+                                foregroundColor: WidgetStateProperty.all(
                                   Colors.black,
                                 ),
                                 alignment: Alignment.center,
-                                shape: MaterialStateProperty.all(
+                                shape: WidgetStateProperty.all(
                                   RoundedRectangleBorder(
                                     borderRadius: BorderRadius.zero,
                                   ),
@@ -109,17 +109,46 @@ class OrderPage extends StatelessWidget {
                               icon: Icon(Icons.cancel),
                               label: Text('CANCELAR'),
                               style: ButtonStyle(
-                                minimumSize: MaterialStateProperty.all(
-                                  Size(150, 50),
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(130, 50),
                                 ),
-                                backgroundColor: MaterialStateProperty.all(
+                                backgroundColor: WidgetStateProperty.all(
                                   Colors.white,
                                 ),
-                                foregroundColor: MaterialStateProperty.all(
+                                foregroundColor: WidgetStateProperty.all(
                                   Colors.black,
                                 ),
                                 alignment: Alignment.center,
-                                shape: MaterialStateProperty.all(
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 5), //separamos en alto
+                          const SizedBox(width: 5), //serparamos en ancho
+                          //boton tiempo
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              onPressed: () {},
+                              icon: Icon(Icons.access_time),
+                              label: Text('TIEMPOS'),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(130, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
                                   RoundedRectangleBorder(
                                     borderRadius: BorderRadius.zero,
                                   ),
@@ -129,8 +158,181 @@ class OrderPage extends StatelessWidget {
                           ),
 
                           const SizedBox(width: 5),
-                          //boton TIEMPOS
-                          Align(alignment: Alignment.centerLeft),
+                          const SizedBox(height: 5),
+                          //boton ELIMINAR
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton(
+                              onPressed: () {},
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(50, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                              child: Icon(Icons.delete, size: 30),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          //boton TRANSFERIR
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton(
+                              onPressed: () {},
+                              child: Row(
+                                children: [
+                                  Icon(Icons.arrow_back),
+                                  SizedBox(width: 5),
+                                  Text('MOVER'),
+                                ],
+                              ),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(130, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 5),
+                          const SizedBox(height: 5),
+                          //boton 1
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              onPressed: () {},
+                              label: Text('1', style: TextStyle(fontSize: 20)),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(90, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 5),
+                          const SizedBox(height: 5),
+                          //boton 2
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              onPressed: () {},
+                              label: Text('2', style: TextStyle(fontSize: 20)),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(90, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 5),
+                          const SizedBox(height: 5),
+                          //boton 2
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              onPressed: () {},
+                              label: Text('3', style: TextStyle(fontSize: 20)),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(90, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 5),
+                          const SizedBox(height: 5),
+                          //boton 2
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              onPressed: () {},
+                              label: Text('+', style: TextStyle(fontSize: 20)),
+                              style: ButtonStyle(
+                                minimumSize: WidgetStateProperty.all(
+                                  Size(75, 50),
+                                ),
+                                backgroundColor: WidgetStateProperty.all(
+                                  Colors.white,
+                                ),
+                                foregroundColor: WidgetStateProperty.all(
+                                  Colors.black,
+                                ),
+                                alignment: Alignment.center,
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
