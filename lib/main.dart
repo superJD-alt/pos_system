@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pos_system/pages/order.dart';
-import 'pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
+//import 'pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
 
 void main() {
   runApp(const MyApp());
