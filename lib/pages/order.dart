@@ -30,6 +30,48 @@ class _OrderPageState extends State<OrderPage> {
               height: 70,
               width: double.infinity,
               color: Colors.white,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // Acción del botón
+                    },
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('ATRÁS'),
+                    style: ButtonStyle(
+                      minimumSize: WidgetStateProperty.all(Size(150, 60)),
+                      backgroundColor: WidgetStateProperty.all(Colors.white),
+                      foregroundColor: WidgetStateProperty.all(Colors.black),
+                      shape: WidgetStateProperty.all(
+                        const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 50),
+                  Spacer(),
+                  //boton menu
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // Acción del botón
+                    },
+                    icon: const Icon(Icons.menu, size: 30),
+                    label: const Text(''),
+                    style: ButtonStyle(
+                      minimumSize: WidgetStateProperty.all(Size(150, 60)),
+                      backgroundColor: WidgetStateProperty.all(Colors.white),
+                      foregroundColor: WidgetStateProperty.all(Colors.black),
+                      shape: WidgetStateProperty.all(
+                        const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -46,15 +88,15 @@ class _OrderPageState extends State<OrderPage> {
                   Expanded(
                     child: Column(
                       children: [
-                        // ===== TABLA DE ORDENES (AZUL) =====
+                        // ===== TABLA DE ORDENES =====
                         Container(
-                          height: 450,
-                          color: Colors.blue,
+                          height: 430,
+                          color: Colors.grey[100],
                           child: SingleChildScrollView(
                             scrollDirection: Axis.vertical,
                             child: DataTable(
-                              headingRowColor: MaterialStateProperty.all(
-                                Colors.grey[200],
+                              headingRowColor: WidgetStateProperty.all(
+                                Colors.grey[400],
                               ),
                               border: TableBorder.symmetric(),
                               columns: const [
@@ -99,8 +141,77 @@ class _OrderPageState extends State<OrderPage> {
 
                         const SizedBox(height: 5),
 
-                        // ===== CONTENEDOR TOTAL (ROJO) =====
-                        Container(height: 60, color: Colors.red),
+                        // ===== CONTENEDOR TOTAL =====
+                        Container(
+                          height: 75,
+                          padding: const EdgeInsets.all(6),
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(color: Colors.grey.shade400),
+                          ),
+                          child: Column(
+                            children: [
+                              // Fila para "Total de ítems"
+                              Row(
+                                children: [
+                                  const Text(
+                                    "Total de ítems:",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 80),
+                                  Expanded(
+                                    child: TextField(
+                                      readOnly:
+                                          true, // 👈 solo lectura, lo rellenas desde el backend
+                                      // controller: _itemsController, // Controlador que usas para setear valor
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: OutlineInputBorder(),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                          vertical: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 1),
+                              // Fila para "Total"
+                              Row(
+                                children: [
+                                  const Text(
+                                    "Total:",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 80),
+                                  Expanded(
+                                    child: TextField(
+                                      readOnly: true,
+                                      //controller: _totalController,
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: OutlineInputBorder(),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                          vertical: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
 
                         const SizedBox(height: 5),
 
@@ -217,11 +328,11 @@ class _OrderPageState extends State<OrderPage> {
                   // ========== LADO DERECHO ==========
                   Column(
                     children: [
-                      // contenedor rosa (arriba)
+                      // contenedor categorias (arriba)
                       Container(
                         height: 60,
                         width: 700,
-                        color: Colors.pink,
+                        color: Colors.grey[300],
                         child: ListView(
                           scrollDirection: Axis.horizontal,
                           children: [
@@ -231,15 +342,16 @@ class _OrderPageState extends State<OrderPage> {
                             _categoriaBoton('Comida'),
                             _categoriaBoton('Postres'),
                             _categoriaBoton('Bebidas'),
+                            _categoriaBoton('Buscar..', icono: Icons.search),
                           ],
                         ),
                       ),
                       const SizedBox(height: 5),
-                      // contenedor café (debajo del rosa)
+                      // contenedor productos
                       Container(
                         height: 610,
                         width: 700,
-                        color: Colors.brown,
+                        color: Colors.grey[300],
                         padding: const EdgeInsets.all(10),
                         child: GridView.builder(
                           itemCount:
@@ -259,13 +371,13 @@ class _OrderPageState extends State<OrderPage> {
                                 print("Presionaste $producto");
                               },
                               style: ButtonStyle(
-                                backgroundColor: MaterialStateProperty.all(
+                                backgroundColor: WidgetStateProperty.all(
                                   Colors.white,
                                 ),
-                                foregroundColor: MaterialStateProperty.all(
+                                foregroundColor: WidgetStateProperty.all(
                                   Colors.black,
                                 ),
-                                shape: MaterialStateProperty.all(
+                                shape: WidgetStateProperty.all(
                                   RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -296,11 +408,11 @@ class _OrderPageState extends State<OrderPage> {
   // ===== Helpers para botones =====
   ButtonStyle _botonEstilo({double minWidth = 130}) {
     return ButtonStyle(
-      minimumSize: MaterialStateProperty.all(Size(minWidth, 50)),
-      backgroundColor: MaterialStateProperty.all(Colors.white),
-      foregroundColor: MaterialStateProperty.all(Colors.black),
+      minimumSize: WidgetStateProperty.all(Size(minWidth, 50)),
+      backgroundColor: WidgetStateProperty.all(Colors.white),
+      foregroundColor: WidgetStateProperty.all(Colors.black),
       alignment: Alignment.center,
-      shape: MaterialStateProperty.all(
+      shape: WidgetStateProperty.all(
         const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
     );
@@ -314,8 +426,8 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // 🔹 BOTÓN DE CATEGORÍA (solo texto)
-  Widget _categoriaBoton(String nombre) {
+  // BOTÓN DE CATEGORÍA (cuadro rosa)
+  Widget _categoriaBoton(String nombre, {IconData? icono}) {
     final bool seleccionado = categoriaSeleccionada == nombre;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 15),
@@ -326,22 +438,36 @@ class _OrderPageState extends State<OrderPage> {
           });
         },
         child: Container(
-          width: 120,
+          width: 95, // un poquito más ancho para el texto + icono
           decoration: BoxDecoration(
             color: seleccionado ? Colors.white : Colors.grey[300],
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(1),
             border: Border.all(
               color: seleccionado ? Colors.blue : Colors.transparent,
-              width: 2,
+              width: 1,
             ),
           ),
           alignment: Alignment.center,
-          child: Text(
-            nombre,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: seleccionado ? Colors.black : Colors.grey[700],
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icono != null) ...[
+                Icon(
+                  icono,
+                  size: 20,
+                  color: seleccionado ? Colors.black : Colors.grey[700],
+                ),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                nombre,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: seleccionado ? Colors.black : Colors.grey[700],
+                ),
+              ),
+            ],
           ),
         ),
       ),
