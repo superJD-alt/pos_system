@@ -45,6 +45,15 @@ class _OrderPageState extends State<OrderPage> {
       {"nombre": "CON SIRLOIN", "icono": Icons.fastfood},
       {"nombre": "CON ARRACHERA", "icono": Icons.fastfood},
     ],
+    "Papas": [
+      {"nombre": "PAPA CON TOCINO", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON CHAMPIÑONES", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON CHISTORRA", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON LONGANIZA", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON CARNE ENCHILADA", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON SIRLOIN", "icono": Icons.fastfood},
+      {"nombre": "PAPA CON ARRACHERA", "icono": Icons.fastfood},
+    ],
     "Todos": [
       {"nombre": "CHICHARRON DE RIB-EYE", "icono": Icons.fastfood},
       {"nombre": "CHAMORRO EN ADOBO", "icono": Icons.local_drink},
@@ -70,15 +79,43 @@ class _OrderPageState extends State<OrderPage> {
       {"nombre": "COSTILLA 1/2 KG", "icono": Icons.fastfood},
       {"nombre": "COSTILLA 1KG", "icono": Icons.fastfood},
     ],
+    "Molcajetes": [
+      {"nombre": "MOLCAJETE TRADICIONAL (2 PERSONAS)", "icono": Icons.fastfood},
+      {"nombre": "MOLCAJETE TRADICIONAL (4 PERSONAS)", "icono": Icons.fastfood},
+      {"nombre": "MOLCAJETE PREMIUM", "icono": Icons.fastfood},
+    ],
+    "Cortes": [
+      {"nombre": "ARRACHERA", "icono": Icons.fastfood},
+      {"nombre": "T-BONE", "icono": Icons.fastfood},
+      {"nombre": "RIB EYE", "icono": Icons.fastfood},
+      {"nombre": "TOMAHAWK", "icono": Icons.fastfood},
+    ],
+    "Tacos": [
+      {"nombre": "TACO DE ARRACHERA", "icono": Icons.fastfood},
+      {"nombre": "TACO DE SIRLOIN", "icono": Icons.fastfood},
+      {"nombre": "TACO DE POLLO", "icono": Icons.fastfood},
+      {"nombre": "TACO DE CHISTORRA", "icono": Icons.fastfood},
+      {"nombre": "TACO DE LONGANIZA", "icono": Icons.fastfood},
+      {"nombre": "TACO DE CARNE ENCHILADA", "icono": Icons.fastfood},
+    ],
+    "Volcanes": [
+      {"nombre": "VOLCAN DE ARRACHERA", "icono": Icons.fastfood},
+      {"nombre": "VOLCAN DE SIRLOIN", "icono": Icons.fastfood},
+      {"nombre": "VOLCAN DE POLLO", "icono": Icons.fastfood},
+      {"nombre": "VOLCAN DE CHISTORRA", "icono": Icons.fastfood},
+      {"nombre": "VOLCAN DE LONGANIZA", "icono": Icons.fastfood},
+      {"nombre": "VOLCAN DE CARNE ENCHILADA", "icono": Icons.fastfood},
+    ],
     "Bebidas": [
       {"nombre": "Coca-Cola", "icono": Icons.local_drink},
       {"nombre": "Agua", "icono": Icons.water_drop},
       {"nombre": "Jugo", "icono": Icons.local_cafe},
     ],
     "Postres": [
-      {"nombre": "Helado", "icono": Icons.icecream},
-      {"nombre": "Pastel", "icono": Icons.cake},
-      {"nombre": "Galletas", "icono": Icons.cookie},
+      {"nombre": "POSTRE ESPECIAL DE LA CASA", "icono": Icons.icecream},
+      {"nombre": "BOLA DE HELADO", "icono": Icons.cake},
+      {"nombre": "LAS ADELITAS", "icono": Icons.cookie},
+      {"nombre": "PANCHO CREPA", "icono": Icons.cookie},
     ],
   };
 
@@ -469,7 +506,7 @@ class _OrderPageState extends State<OrderPage> {
   Widget _categoriaBoton(String nombre, {IconData? icono}) {
     final bool seleccionado = categoriaSeleccionada == nombre;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0.5, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 0.1, vertical: 15),
       child: GestureDetector(
         onTap: () {
           setState(() {
