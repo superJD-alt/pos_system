@@ -10,12 +10,21 @@ class OrderPage extends StatefulWidget {
 class _OrderPageState extends State<OrderPage> {
   String categoriaSeleccionada = "Alimentos"; // valor inicial
 
+  int totalItems = 0; //contador de total de items
+  double totalGeneral = 0.0; //contador de totalGeneral
+
+  Map<String, dynamic>?
+  prodcutoSeleccionado; //producto seleccionado actualmente en la tabla de orden
+
+  List<Map<String, dynamic>> ordenes =
+      []; //lista para productos en tabla de ordenes
+
   // Productos: solo nombres, para botones sin imagen
-  final Map<String, List<Map<String, dynamic>>> productos = {
-    "Entradas": [
+  final Map<String, dynamic> productos = {
+    "Entradas": <Map<String, dynamic>>[
       {
         "nombre": "TUETANOS AL GRILL",
-        "imagen": "assets/grid_images/tuetanos_al_grill.png",
+        "imagen": "assets/grid_images/tuetanosAlGrill.jpg",
         "precio": 120.00,
       },
       {
@@ -25,12 +34,12 @@ class _OrderPageState extends State<OrderPage> {
       },
       {
         "nombre": "ORDEN DE CHISTORRA",
-        "imagen": "assets/grid_images/ordenChistorra.jpg",
+        "imagen": "assets/grid_images/ordenChistorra.jpeg",
         "precio": 150.00,
       },
       {
         "nombre": "JALAPEÑOS RELLENOS",
-        "imagen": "assets/grid_images/jalapenosRellenos.jpg",
+        "imagen": "assets/grid_images/jalapenosRellenos.jpeg",
         "precio": 80.00,
       },
       {
@@ -64,246 +73,612 @@ class _OrderPageState extends State<OrderPage> {
         "precio": 40.00,
       },
     ],
-    "Ensaladas": [
+    "Ensaladas": <Map<String, dynamic>>[
       {
         "nombre": "ENSALADA CON ARRACHERA",
-        "icono": Icons.emoji_food_beverage,
+        "imagen": "assets/grid_images/ensaladaArracherra.jpg",
         "precio": 120.00,
       },
       {
         "nombre": "ENSALADA CON POLLO",
-        "icono": Icons.emoji_food_beverage,
+        "imagen": "assets/grid_images/ensaladaPollo.jpeg",
         "precio": 100.00,
       },
       {
         "nombre": "ENSALADA CON SIRLOIN",
-        "icono": Icons.emoji_food_beverage,
+        "imagen": "assets/grid_images/ensaladaSirloin.jpeg",
         "precio": 150.00,
       },
       {
         "nombre": "ENSALADA CON ATUN",
-        "icono": Icons.emoji_food_beverage,
+        "imagen": "assets/grid_images/ensaladaAtun.jpeg",
         "precio": 130.00,
       },
       {
         "nombre": "ENSALADA VILLA",
-        "icono": Icons.emoji_food_beverage,
+        "imagen": "assets/grid_images/ensaladaVilla.jpg",
         "precio": 140.00,
       },
     ],
-    "Sopas": [
+    "Sopas": <Map<String, dynamic>>[
       {
         "nombre": "PASTA ALFREDO CON POLLO",
-        "icono": Icons.ramen_dining,
+        "imagen": "assets/grid_images/pastaAlfredo.jpg",
         "precio": 160.00,
       },
-      {"nombre": "SOPA AZTECA", "icono": Icons.ramen_dining, "precio": 90.00},
-      {"nombre": "PASTA MIXTA", "icono": Icons.ramen_dining, "precio": 110.00},
+      {
+        "nombre": "SOPA AZTECA",
+        "imagen": "assets/grid_images/sopaAzteca.jpg",
+        "precio": 90.00,
+      },
+      {
+        "nombre": "PASTA MIXTA",
+        "imagen": "assets/grid_images/pastaMixta.jpg",
+        "precio": 110.00,
+      },
       {
         "nombre": "CONSOME DE POLLO",
-        "icono": Icons.ramen_dining,
+        "imagen": "assets/grid_images/consomePollo.jpg",
         "precio": 80.00,
       },
     ],
-    "Quesos": [
-      {"nombre": "NATURAL", "icono": Icons.fastfood, "precio": 100.00},
+    "Quesos": <Map<String, dynamic>>[
+      {
+        "nombre": "NATURAL",
+        "imagen": "assets/grid_images/quesoNatural.jpeg",
+        "precio": 100.00,
+      },
       {
         "nombre": "CON CHAMPIÑONES ASADOS",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/quesoChampinon.jpg",
         "precio": 120.00,
       },
-      {"nombre": "CON CHISTORRA", "icono": Icons.fastfood, "precio": 150.00},
-      {"nombre": "CON LONGANIZA", "icono": Icons.fastfood, "precio": 160.00},
-      {"nombre": "CON SIRLOIN", "icono": Icons.fastfood, "precio": 170.00},
-      {"nombre": "CON ARRACHERA", "icono": Icons.fastfood, "precio": 180.00},
+      {
+        "nombre": "CON CHISTORRA",
+        "imagen": "assets/grid_images/quesoChistoraa.jpg",
+        "precio": 150.00,
+      },
+      {
+        "nombre": "CON LONGANIZA",
+        "imagen": "assets/grid_images/quesoLonganiza.jpeg",
+        "precio": 160.00,
+      },
+      {
+        "nombre": "CON SIRLOIN",
+        "imagen": "assets/grid_images/quesoSirloin.jpeg",
+        "precio": 170.00,
+      },
+      {
+        "nombre": "CON ARRACHERA",
+        "imagen": "assets/grid_images/quesoArracherra.jpg",
+        "precio": 180.00,
+      },
     ],
-    "Papas": [
-      {"nombre": "PAPA CON TOCINO", "icono": Icons.fastfood, "precio": 100.00},
+    "Papas": <Map<String, dynamic>>[
+      {
+        "nombre": "PAPA CON TOCINO",
+        "imagen": "assets/grid_images/papaTocino.jpg",
+        "precio": 100.00,
+      },
       {
         "nombre": "PAPA CON CHAMPIÑONES",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/papaChampinon.jpg",
         "precio": 120.00,
       },
       {
         "nombre": "PAPA CON CHISTORRA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/papasChistorra.jpg",
         "precio": 150.00,
       },
       {
         "nombre": "PAPA CON LONGANIZA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/papasLonganiza.jpg",
         "precio": 160.00,
       },
       {
         "nombre": "PAPA CON CARNE ENCHILADA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/papaCarne.jpg",
         "precio": 170.00,
       },
-      {"nombre": "PAPA CON SIRLOIN", "icono": Icons.fastfood, "precio": 180.00},
+      {
+        "nombre": "PAPA CON SIRLOIN",
+        "imagen": "assets/grid_images/papaSirloin.jpeg",
+        "precio": 180.00,
+      },
       {
         "nombre": "PAPA CON ARRACHERA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/papaArrachera.jpeg",
         "precio": 190.00,
       },
     ],
-    "Todos": [
+    "Todos": <Map<String, dynamic>>[
       {
         "nombre": "CHICHARRON DE RIB-EYE",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/chicharronRibEye.jpeg",
         "precio": 200.00,
       },
       {
         "nombre": "CHAMORRO EN ADOBO",
-        "icono": Icons.local_drink,
+        "imagen": "assets/grid_images/chamorroAdobo.jpeg",
         "precio": 210.00,
       },
       {
         "nombre": "ENCHILADAS SUIZAS",
-        "icono": Icons.icecream,
+        "imagen": "assets/grid_images/enchiladasSuizas.jpg",
         "precio": 220.00,
       },
-      {"nombre": "ORDEN DE SIRLOIN", "icono": Icons.cake, "precio": 230.00},
-      {"nombre": "PECHUGA AL GRILL", "icono": Icons.fastfood, "precio": 240.00},
+      {
+        "nombre": "ORDEN DE SIRLOIN",
+        "imagen": "assets/grid_images/ordenSirloin.jpeg",
+        "precio": 230.00,
+      },
+      {
+        "nombre": "PECHUGA AL GRILL",
+        "imagen": "assets/grid_images/pechugaGrill.jpeg",
+        "precio": 240.00,
+      },
       {
         "nombre": "ORDEN DE CARNE DE ENCHILADA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/ordenEnchilada.jpg",
         "precio": 250.00,
       },
       {
         "nombre": "COSTILLAS A LA BBQ",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/costillasBBQ.jpg",
         "precio": 260.00,
       },
       {
         "nombre": "ALITAS AL CARBON O FRITAS",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/alitasFritas.jpeg",
         "precio": 270.00,
       },
-      {"nombre": "BURRITO", "icono": Icons.fastfood, "precio": 280.00},
-      {"nombre": "ALAMBRE", "icono": Icons.fastfood, "precio": 290.00},
-      {"nombre": "ORDEN DE NUGGETS", "icono": Icons.fastfood, "precio": 300.00},
+      {
+        "nombre": "BURRITO",
+        "imagen": "assets/grid_images/burrito.jpeg",
+        "precio": 280.00,
+      },
+      {
+        "nombre": "ALAMBRE",
+        "imagen": "assets/grid_images/alambre.jpg",
+        "precio": 290.00,
+      },
+      {
+        "nombre": "ORDEN DE NUGGETS",
+        "imagen": "assets/grid_images/nuggets.jpeg",
+        "precio": 300.00,
+      },
       {
         "nombre": "HAMBURGUESA DOBLE",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/hamburguesaDoble.jpg",
         "precio": 310.00,
       },
       {
         "nombre": "HAMBURGUESA SENCILLA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/hamburguesaSencilla.jpeg",
         "precio": 320.00,
       },
       {
         "nombre": "HAMBURGUESA LA GUERRILLERA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/hamburguesaGuerrillera.jpeg",
         "precio": 330.00,
       },
-      {"nombre": "EXTRA DE PIÑA", "icono": Icons.fastfood, "precio": 340.00},
+      {
+        "nombre": "EXTRA DE PIÑA",
+        "imagen": "assets/grid_images/extraPina.jpeg",
+        "precio": 340.00,
+      },
       {
         "nombre": "EXTRA DE 3 QUESOS",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/extraQueso.jpeg",
         "precio": 350.00,
       },
       {
         "nombre": "EXTRA DE GUACAMOLE",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/extraGuacamole.jpeg",
         "precio": 360.00,
       },
-      {"nombre": "EXTRA DE TOCINO", "icono": Icons.fastfood, "precio": 370.00},
+      {
+        "nombre": "EXTRA DE TOCINO",
+        "imagen": "assets/grid_images/extraTocino.jpg",
+        "precio": 370.00,
+      },
     ],
-    "Costillas": [
-      {"nombre": "COSTILLA 1/4 KG", "icono": Icons.fastfood, "precio": 380.00},
-      {"nombre": "COSTILLA 1/2 KG", "icono": Icons.fastfood, "precio": 390.00},
-      {"nombre": "COSTILLA 1KG", "icono": Icons.fastfood, "precio": 400.00},
+    "Costillas": <Map<String, dynamic>>[
+      {
+        "nombre": "COSTILLA 1/4 KG",
+        "imagen": "assets/grid_images/costillas.jpeg",
+        "precio": 380.00,
+      },
+      {
+        "nombre": "COSTILLA 1/2 KG",
+        "imagen": "assets/grid_images/costillas.jpeg",
+        "precio": 390.00,
+      },
+      {
+        "nombre": "COSTILLA 1KG",
+        "imagen": "assets/grid_images/costillas.jpeg",
+        "precio": 400.00,
+      },
     ],
-    "Molcajetes": [
+    "Molcajetes": <Map<String, dynamic>>[
       {
         "nombre": "MOLCAJETE TRADICIONAL (2 PERSONAS)",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/molcajete.jpg",
         "precio": 500.00,
       },
       {
         "nombre": "MOLCAJETE TRADICIONAL (4 PERSONAS)",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/molcajete.jpg",
         "precio": 1000.00,
       },
       {
         "nombre": "MOLCAJETE PREMIUM",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/molcajetePremium.jpg",
         "precio": 1500.00,
       },
     ],
-    "Cortes": [
-      {"nombre": "ARRACHERA", "icono": Icons.fastfood, "precio": 400.00},
-      {"nombre": "T-BONE", "icono": Icons.fastfood, "precio": 500.00},
-      {"nombre": "RIB EYE", "icono": Icons.fastfood, "precio": 600.00},
-      {"nombre": "TOMAHAWK", "icono": Icons.fastfood, "precio": 700.00},
-    ],
-    "Tacos": [
+    "Cortes": <Map<String, dynamic>>[
       {
-        "nombre": "TACO DE ARRACHERA",
-        "icono": Icons.fastfood,
+        "nombre": "ARRACHERA",
+        "imagen": "assets/grid_images/arracheraCorte.jpeg",
         "precio": 400.00,
       },
-      {"nombre": "TACO DE SIRLOIN", "icono": Icons.fastfood, "precio": 500.00},
-      {"nombre": "TACO DE POLLO", "icono": Icons.fastfood, "precio": 300.00},
+      {
+        "nombre": "T-BONE",
+        "imagen": "assets/grid_images/tBoneCorte.jpg",
+        "precio": 500.00,
+      },
+      {
+        "nombre": "RIB EYE",
+        "imagen": "assets/grid_images/ribEyeCorte.jpg",
+        "precio": 600.00,
+      },
+      {
+        "nombre": "TOMAHAWK",
+        "imagen": "assets/grid_images/tomahawkCorte.jpg",
+        "precio": 700.00,
+      },
+    ],
+    "Tacos": <Map<String, dynamic>>[
+      {
+        "nombre": "TACO DE ARRACHERA",
+        "imagen": "assets/grid_images/tacoArrachera.jpg",
+        "precio": 400.00,
+      },
+      {
+        "nombre": "TACO DE SIRLOIN",
+        "imagen": "assets/grid_images/tacoSirloin.jpg",
+        "precio": 500.00,
+      },
+      {
+        "nombre": "TACO DE POLLO",
+        "imagen": "assets/grid_images/tacoPollo.jpeg",
+        "precio": 300.00,
+      },
       {
         "nombre": "TACO DE CHISTORRA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/tacoChistorra.jpeg",
         "precio": 300.00,
       },
       {
         "nombre": "TACO DE LONGANIZA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/tacoLonganiza.jpeg",
         "precio": 300.00,
       },
       {
         "nombre": "TACO DE CARNE ENCHILADA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/tacoEnchilada.jpg",
         "precio": 300.00,
       },
     ],
-    "Volcanes": [
+    "Volcanes": <Map<String, dynamic>>[
       {
         "nombre": "VOLCAN DE ARRACHERA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/volcanArrachera.jpeg",
         "precio": 400.00,
       },
       {
         "nombre": "VOLCAN DE SIRLOIN",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/volcanSirloin.jpeg",
         "precio": 500.00,
       },
-      {"nombre": "VOLCAN DE POLLO", "icono": Icons.fastfood, "precio": 300.00},
+      {
+        "nombre": "VOLCAN DE POLLO",
+        "imagen": "assets/grid_images/volcanPollo.jpg",
+        "precio": 300.00,
+      },
       {
         "nombre": "VOLCAN DE CHISTORRA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/volcanChistorra.jpeg",
         "precio": 300.00,
       },
       {
         "nombre": "VOLCAN DE LONGANIZA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/volcanLonganiza.jpeg",
         "precio": 300.00,
       },
       {
         "nombre": "VOLCAN DE CARNE ENCHILADA",
-        "icono": Icons.fastfood,
+        "imagen": "assets/grid_images/volcanEnchilada.jpeg",
         "precio": 300.00,
       },
     ],
-    "Bebidas": [
-      {"nombre": "Coca-Cola", "icono": Icons.local_drink, "precio": 30.00},
-      {"nombre": "Agua", "icono": Icons.water_drop, "precio": 20.00},
-      {"nombre": "Jugo", "icono": Icons.local_cafe, "precio": 25.00},
-    ],
-    "Postres": [
+    "Bebidas": {
+      "Sin Alcohol": <Map<String, dynamic>>[
+        {
+          "nombre": "AGUA FRESCA CON REFIL",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 35.00,
+        },
+        {
+          "nombre": "PIÑADA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 90.00,
+        },
+        {
+          "nombre": "NARANJADA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "LIMONADA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "JUGO VALLE MANGO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "AGUA MINERAL S.PELLEGRINO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "AGUA MINERAL DE TAXCO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "BOTELLA DE AGUA NATURAL",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "TAZA DE CAFÉ",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+      ],
+      "Refrescos": <Map<String, dynamic>>[
+        {
+          "nombre": "COCA-COLA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "SIDRAL MUNDET",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "YOLI",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "FRESCA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "FANTA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+        {
+          "nombre": "COCA-COLA ZERO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 25.00,
+        },
+      ],
+      "Cocteles": <Map<String, dynamic>>[
+        {
+          "nombre": "CLERICOT COPA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 80.00,
+        },
+        {
+          "nombre": "CLARICOT JARRA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 300.00,
+        },
+        {
+          "nombre": "MOJITO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 85.00,
+        },
+        {
+          "nombre": "BERTA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 85.00,
+        },
+        {
+          "nombre": "SUEÑO DE UVA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 85.00,
+        },
+        {
+          "nombre": "ESCARLATA FIZZ",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 95.00,
+        },
+        {
+          "nombre": "TINTO DE VERANO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 95.00,
+        },
+        {
+          "nombre": "CARAJILLO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 115.00,
+        },
+        {
+          "nombre": "CANTARITO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 100.00,
+        },
+        {
+          "nombre": "PIÑA COLADA",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 110.00,
+        },
+        {
+          "nombre": "AFFOGATO",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 120.00,
+        },
+        {
+          "nombre": "APEROL SPRITZ",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 120.00,
+        },
+        {
+          "nombre": "BAILEYS",
+          "imagen": "assets/grid_images/jugo.jpeg",
+          "precio": 120.00,
+        },
+      ],
+      "Cervezas": <Map<String, dynamic>>[
+        {
+          "nombre": "VICTORIA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 35.00,
+        },
+        {
+          "nombre": "CORONA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 35.00,
+        },
+        {
+          "nombre": "NEGRA MODELO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 40.00,
+        },
+        {
+          "nombre": "MODELO ESPECIAL",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 40.00,
+        },
+        {
+          "nombre": "PACIFICO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 40.00,
+        },
+        {
+          "nombre": "ULTRA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 40.00,
+        },
+        {
+          "nombre": "STELLA ARTOIS",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 45.00,
+        },
+        {
+          "nombre": "VASO CUBANO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 15.00,
+        },
+        {
+          "nombre": "VASO CON CLAMATO O MICHELADO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 20.00,
+        },
+      ],
+      "Tequila": <Map<String, dynamic>>[
+        {
+          "nombre": "TEQUILA GRAN CENTENARIO REPOSADO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 85.00,
+        },
+        {
+          "nombre": "JOSE CUERVO TRADICIONAL REPOSADO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 75.00,
+        },
+      ],
+      "Whiskey": <Map<String, dynamic>>[
+        {
+          "nombre": "CHIVAS REGAL",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 135.00,
+        },
+        {
+          "nombre": "BUCHANANS",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 125.00,
+        },
+        {
+          "nombre": "ETIQUETA ROJA",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 85.00,
+        },
+      ],
+      "Brandy": <Map<String, dynamic>>[
+        {
+          "nombre": "TORRES 10",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 95.00,
+        },
+      ],
+      "Mezcal": <Map<String, dynamic>>[
+        {
+          "nombre": "MEZCAL",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 55.00,
+        },
+        {
+          "nombre": "MEZCAL 400 CONEJOS",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 75.00,
+        },
+      ],
+      "Vinos": <Map<String, dynamic>>[
+        {
+          "nombre": "BOTELLA DE VINO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 300.00,
+        },
+        {
+          "nombre": "COPA DE VINO TINTO O BLANCO",
+          "imagen": "assets/grid_images/agua.jpg",
+          "precio": 75.00,
+        },
+      ],
+    },
+    "Postres": <Map<String, dynamic>>[
       {
         "nombre": "POSTRE ESPECIAL DE LA CASA",
-        "icono": Icons.icecream,
+        "imagen": "assets/grid_images/postreDeLaCasa.jpg",
         "precio": 100.00,
       },
-      {"nombre": "BOLA DE HELADO", "icono": Icons.cake, "precio": 50.00},
-      {"nombre": "LAS ADELITAS", "icono": Icons.cookie, "precio": 75.00},
-      {"nombre": "PANCHO CREPA", "icono": Icons.cookie, "precio": 80.00},
+      {
+        "nombre": "BOLA DE HELADO",
+        "imagen": "assets/grid_images/bolasHelado.jpg",
+        "precio": 50.00,
+      },
+      {
+        "nombre": "LAS ADELITAS",
+        "imagen": "assets/grid_images/postreAdelita.png",
+        "precio": 75.00,
+      },
+      {
+        "nombre": "PANCHO CREPA",
+        "imagen": "assets/grid_images/postrePancho.jpeg",
+        "precio": 80.00,
+      },
     ],
   };
 
@@ -374,35 +749,19 @@ class _OrderPageState extends State<OrderPage> {
                                   DataColumn(label: Text('Precio')),
                                   DataColumn(label: Text('Total')),
                                 ],
-                                rows: const [
-                                  DataRow(
+                                rows: ordenes.map((item) {
+                                  return DataRow(
                                     cells: [
-                                      DataCell(Text('2')),
-                                      DataCell(Text('*')),
-                                      DataCell(Text('Hamburguesa')),
-                                      DataCell(Text('\$5.00')),
-                                      DataCell(Text('\$10.00')),
+                                      DataCell(
+                                        Text(item['cantidad'].toString()),
+                                      ),
+                                      const DataCell(Text('*')),
+                                      DataCell(Text(item['nombre'])),
+                                      DataCell(Text("\$${item['precio']}")),
+                                      DataCell(Text("\$${item['total']}")),
                                     ],
-                                  ),
-                                  DataRow(
-                                    cells: [
-                                      DataCell(Text('1')),
-                                      DataCell(Text('/')),
-                                      DataCell(Text('Papas Fritas')),
-                                      DataCell(Text('\$3.00')),
-                                      DataCell(Text('\$3.00')),
-                                    ],
-                                  ),
-                                  DataRow(
-                                    cells: [
-                                      DataCell(Text('3')),
-                                      DataCell(Text('*')),
-                                      DataCell(Text('Refresco')),
-                                      DataCell(Text('\$2.00')),
-                                      DataCell(Text('\$6.00')),
-                                    ],
-                                  ),
-                                ],
+                                  );
+                                }).toList(),
                               ),
                             ),
                           ),
@@ -412,64 +771,32 @@ class _OrderPageState extends State<OrderPage> {
 
                         // ===== CONTENEDOR TOTAL =====
                         Container(
-                          height: 80,
-                          padding: const EdgeInsets.all(5),
-                          margin: EdgeInsets.zero,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(color: Colors.grey.shade400),
-                          ),
-                          child: Column(
+                          padding: const EdgeInsets.all(8),
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  const Text(
-                                    "Total de ítems:",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
+                              Expanded(
+                                child: TextField(
+                                  readOnly: true,
+                                  controller: TextEditingController(
+                                    text: totalItems.toString(),
                                   ),
-                                  const SizedBox(width: 80),
-                                  Expanded(
-                                    child: TextField(
-                                      readOnly: true,
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                        ),
-                                      ),
-                                    ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Total de ítems',
                                   ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 7),
-                              Row(
-                                children: [
-                                  const Text(
-                                    "Total:",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 20,
-                                    ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextField(
+                                  readOnly: true,
+                                  controller: TextEditingController(
+                                    text:
+                                        "\$${totalGeneral.toStringAsFixed(2)}",
                                   ),
-                                  const SizedBox(width: 80),
-                                  Expanded(
-                                    child: TextField(
-                                      readOnly: true,
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                        ),
-                                      ),
-                                    ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Total general',
                                   ),
-                                ],
+                                ),
                               ),
                             ],
                           ),
@@ -565,7 +892,6 @@ class _OrderPageState extends State<OrderPage> {
                               _categoriaBoton('Cortes'),
                               _categoriaBoton('Tacos'),
                               _categoriaBoton('Volcanes'),
-                              _categoriaBoton('Comida'),
                               _categoriaBoton('Postres'),
                               _categoriaBoton('Bebidas'),
                               _categoriaBoton('Buscar..', icono: Icons.search),
@@ -580,75 +906,183 @@ class _OrderPageState extends State<OrderPage> {
                           child: Container(
                             color: Colors.grey[300],
                             padding: const EdgeInsets.all(10),
-                            child: GridView.builder(
-                              itemCount:
-                                  productos[categoriaSeleccionada]?.length ?? 0,
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    childAspectRatio: 1.0, // Cambié de 2 a 1.0
-                                    mainAxisSpacing: 10,
-                                    crossAxisSpacing: 10,
-                                  ),
-                              itemBuilder: (context, index) {
-                                final producto =
-                                    productos[categoriaSeleccionada]![index];
-                                return ElevatedButton(
-                                  onPressed: () {
-                                    print(
-                                      "Presionaste ${producto['nombre']}",
-                                    ); // Cambié aquí
-                                  },
-                                  style: ButtonStyle(
-                                    backgroundColor: WidgetStateProperty.all(
-                                      Colors.white,
-                                    ),
-                                    foregroundColor: WidgetStateProperty.all(
-                                      Colors.black,
-                                    ),
-                                    shape: WidgetStateProperty.all(
-                                      RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    padding: WidgetStateProperty.all(
-                                      // Agregué padding
-                                      const EdgeInsets.all(8),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    // Cambié de Text a Column
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Image.asset(
-                                        producto['imagen'],
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        producto['nombre'],
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                            child: categoriaSeleccionada == "Bebidas"
+                                ? ListView(
+                                    children: (productos["Bebidas"] as Map<String, List>).entries.map((
+                                      entry,
+                                    ) {
+                                      final subCategoria = entry.key;
+                                      final lista = entry.value;
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          //  Encabezado de la subcategoría
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 8.0,
+                                            ),
+                                            child: Text(
+                                              subCategoria,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+
+                                          //  Grid con productos de esa subcategoría
+                                          GridView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: lista.length,
+                                            gridDelegate:
+                                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: 3,
+                                                  childAspectRatio: 1.0,
+                                                  mainAxisSpacing: 10,
+                                                  crossAxisSpacing: 10,
+                                                ),
+                                            itemBuilder: (context, index) {
+                                              final producto = lista[index];
+                                              return ElevatedButton(
+                                                onPressed: () {
+                                                  _agregarProducto(producto);
+                                                },
+                                                style: ButtonStyle(
+                                                  backgroundColor:
+                                                      WidgetStateProperty.all(
+                                                        Colors.white,
+                                                      ),
+                                                  foregroundColor:
+                                                      WidgetStateProperty.all(
+                                                        Colors.black,
+                                                      ),
+                                                  shape: WidgetStateProperty.all(
+                                                    RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  padding:
+                                                      WidgetStateProperty.all(
+                                                        const EdgeInsets.all(8),
+                                                      ),
+                                                ),
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Image.asset(
+                                                      producto['imagen'],
+                                                      width: 100,
+                                                      height: 100,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      producto['nombre'],
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      "\$${producto['precio']}",
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.green,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  )
+                                : GridView.builder(
+                                    itemCount:
+                                        productos[categoriaSeleccionada]
+                                            ?.length ??
+                                        0,
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 3,
+                                          childAspectRatio: 1.0,
+                                          mainAxisSpacing: 10,
+                                          crossAxisSpacing: 10,
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "\$${producto['precio']}",
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.green,
-                                          fontWeight: FontWeight.bold,
+                                    itemBuilder: (context, index) {
+                                      final producto =
+                                          productos[categoriaSeleccionada]![index];
+                                      return ElevatedButton(
+                                        onPressed: () {
+                                          _agregarProducto(producto);
+                                        },
+                                        style: ButtonStyle(
+                                          backgroundColor:
+                                              WidgetStateProperty.all(
+                                                Colors.white,
+                                              ),
+                                          foregroundColor:
+                                              WidgetStateProperty.all(
+                                                Colors.black,
+                                              ),
+                                          shape: WidgetStateProperty.all(
+                                            RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          padding: WidgetStateProperty.all(
+                                            const EdgeInsets.all(8),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Image.asset(
+                                              producto['imagen'],
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              producto['nombre'],
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "\$${producto['precio']}",
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
                                   ),
-                                );
-                              },
-                            ),
                           ),
                         ),
                       ],
@@ -757,5 +1191,34 @@ class _OrderPageState extends State<OrderPage> {
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
+  }
+
+  void _agregarProducto(Map<String, dynamic> producto) {
+    setState(() {
+      final index = ordenes.indexWhere(
+        (item) => item['nombre'] == producto['nombre'],
+      );
+      if (index >= 0) {
+        ordenes[index]['cantidad']++;
+        ordenes[index]['total'] =
+            ordenes[index]['cantidad'] * ordenes[index]['precio'];
+      } else {
+        ordenes.add({
+          "nombre": producto['nombre'],
+          "precio": producto['precio'],
+          "cantidad": 1,
+          "total": producto['precio'],
+        });
+      }
+
+      totalItems = ordenes.fold(
+        0,
+        (sum, item) => sum + item['cantidad'] as int,
+      );
+      totalGeneral = ordenes.fold(
+        0.0,
+        (sum, item) => sum + (item['total'] as double),
+      );
+    });
   }
 }
