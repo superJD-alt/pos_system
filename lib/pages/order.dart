@@ -10,11 +10,13 @@ class OrderPage extends StatefulWidget {
 class _OrderPageState extends State<OrderPage> {
   String categoriaSeleccionada = "Alimentos"; // valor inicial
 
+  int cantidadBuffer = 0; //contador para botones
+
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
 
   Map<String, dynamic>?
-  prodcutoSeleccionado; //producto seleccionado actualmente en la tabla de orden
+  productoSeleccionado; //producto seleccionado actualmente en la tabla de orden
 
   List<Map<String, dynamic>> ordenes =
       []; //lista para productos en tabla de ordenes
@@ -686,6 +688,8 @@ class _OrderPageState extends State<OrderPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey,
+      resizeToAvoidBottomInset:
+          false, //para abrir el teclado de notas sin que la UI de mueva
       body: Column(
         children: [
           // ================== HEADER SUPERIOR ==================
@@ -746,21 +750,77 @@ class _OrderPageState extends State<OrderPage> {
                                   DataColumn(label: Text('Cant')),
                                   DataColumn(label: Text('C')),
                                   DataColumn(label: Text('Descripción')),
+                                  DataColumn(label: Text('T')),
                                   DataColumn(label: Text('Precio')),
                                   DataColumn(label: Text('Total')),
                                 ],
-                                rows: ordenes.map((item) {
-                                  return DataRow(
+                                rows: ordenes.expand((item) {
+                                  bool seleccionado =
+                                      productoSeleccionado == item;
+
+                                  // Fila principal del producto
+                                  final mainRow = DataRow(
+                                    selected: seleccionado,
+                                    onSelectChanged: (val) {
+                                      setState(() {
+                                        productoSeleccionado = item;
+                                      });
+                                    },
                                     cells: [
                                       DataCell(
                                         Text(item['cantidad'].toString()),
                                       ),
-                                      const DataCell(Text('*')),
+                                      const DataCell(
+                                        SizedBox(
+                                          width: 10,
+                                          child: Text(
+                                            '/',
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                       DataCell(Text(item['nombre'])),
+                                      DataCell(
+                                        SizedBox(
+                                          width: 10,
+                                          child: Text(
+                                            item['tiempo']?.toString() ?? '1',
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                       DataCell(Text("\$${item['precio']}")),
-                                      DataCell(Text("\$${item['total']}")),
+                                      DataCell(
+                                        Text(
+                                          "\$${(item['precio'] * item['cantidad']).toStringAsFixed(2)}",
+                                        ),
+                                      ),
                                     ],
                                   );
+
+                                  // Fila extra para la nota, si existe
+                                  if ((item['nota'] ?? "").isNotEmpty) {
+                                    final noteRow = DataRow(
+                                      cells: [
+                                        const DataCell(SizedBox()), // vacío
+                                        const DataCell(SizedBox()), // vacío
+                                        DataCell(
+                                          Text(
+                                            "Nota: ${item['nota']}",
+                                            style: const TextStyle(
+                                              fontStyle: FontStyle.italic,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                        const DataCell(SizedBox()), // vacío
+                                        const DataCell(SizedBox()), // vacío
+                                      ],
+                                    );
+                                    return [mainRow, noteRow];
+                                  } else {
+                                    return [mainRow];
+                                  }
                                 }).toList(),
                               ),
                             ),
@@ -823,21 +883,45 @@ class _OrderPageState extends State<OrderPage> {
                               childAspectRatio: 3,
                               physics: const NeverScrollableScrollPhysics(),
                               children: [
-                                _botonAccion(Icons.local_offer, "NOTA", () {}),
+                                _botonAccion(
+                                  Icons.local_offer,
+                                  "NOTA",
+                                  _agregarNota,
+                                ),
                                 _botonAccion(Icons.cancel, "CANCELAR", () {}),
                                 _botonAccion(
                                   Icons.access_time,
                                   "TIEMPOS",
-                                  () {},
+                                  _cambiarTiempo,
                                 ),
-                                _botonAccion(Icons.delete, "", () {}),
+                                _botonAccion(
+                                  Icons.delete,
+                                  "",
+                                  _eliminarProducto,
+                                ),
 
                                 _botonAccion(
                                   Icons.swap_horiz,
                                   "TRANSFERIR",
                                   () {},
                                 ),
-                                _botonNumero("1"),
+                                _botonNumero(
+                                  "1",
+                                  onPressed: () {
+                                    if (productoSeleccionado != null) {
+                                      setState(() {
+                                        productoSeleccionado!['cantidad'] = 1;
+                                        productoSeleccionado!['total'] =
+                                            (productoSeleccionado!['cantidad']
+                                                as int) *
+                                            (productoSeleccionado!['precio']
+                                                as double);
+                                        _recalcularTotales();
+                                      });
+                                    }
+                                  },
+                                ),
+
                                 _botonNumero("2"),
                                 _botonNumero("3"),
 
@@ -856,8 +940,16 @@ class _OrderPageState extends State<OrderPage> {
                                 _botonNumero("9"),
 
                                 const SizedBox.shrink(),
-                                _botonAccion(Icons.add, "+", () {}),
-                                _botonAccion(Icons.remove, "-", () {}),
+                                _botonAccion(
+                                  Icons.add,
+                                  "+",
+                                  _incrementarCantidad,
+                                ),
+                                _botonAccion(
+                                  Icons.remove,
+                                  "-",
+                                  _disminuirCantidad,
+                                ),
                                 _botonNumero("0"),
                               ],
                             ),
@@ -894,7 +986,7 @@ class _OrderPageState extends State<OrderPage> {
                               _categoriaBoton('Volcanes'),
                               _categoriaBoton('Postres'),
                               _categoriaBoton('Bebidas'),
-                              _categoriaBoton('Buscar..', icono: Icons.search),
+                              //_categoriaBoton('Buscar..', icono: Icons.search),
                             ],
                           ),
                         ),
@@ -1029,7 +1121,55 @@ class _OrderPageState extends State<OrderPage> {
                                           productos[categoriaSeleccionada]![index];
                                       return ElevatedButton(
                                         onPressed: () {
-                                          _agregarProducto(producto);
+                                          //_agregarProducto(producto);
+                                          setState(() {
+                                            // Buscar si ya existe en la orden
+                                            int indexEnOrden = ordenes
+                                                .indexWhere(
+                                                  (p) =>
+                                                      p['nombre'] ==
+                                                      producto['nombre'],
+                                                );
+                                            if (indexEnOrden != -1) {
+                                              // Ya existe → sumamos 1 a la cantidad
+                                              ordenes[indexEnOrden]['cantidad'] =
+                                                  (ordenes[indexEnOrden]['cantidad']
+                                                      as int) +
+                                                  1;
+                                              ordenes[indexEnOrden]['total'] =
+                                                  (ordenes[indexEnOrden]['cantidad']
+                                                      as int) *
+                                                  (ordenes[indexEnOrden]['precio']
+                                                      as double);
+                                              productoSeleccionado =
+                                                  ordenes[indexEnOrden];
+                                            } else {
+                                              // Nuevo producto bien tipado
+                                              Map<String, dynamic> nuevo = {
+                                                "nombre": producto['nombre'],
+                                                "precio": producto['precio'],
+                                                "imagen": producto['imagen'],
+                                                "cantidad": 1,
+                                                "total": producto['precio'],
+                                              };
+                                              ordenes.add(nuevo);
+                                              productoSeleccionado = nuevo;
+                                            }
+
+                                            // Recalcular totales
+                                            totalItems = ordenes.fold(
+                                              0,
+                                              (sum, item) =>
+                                                  sum +
+                                                  (item['cantidad'] as int),
+                                            );
+                                            totalGeneral = ordenes.fold(
+                                              0.0,
+                                              (sum, item) =>
+                                                  sum +
+                                                  (item['total'] as double),
+                                            );
+                                          });
                                         },
                                         style: ButtonStyle(
                                           backgroundColor:
@@ -1182,9 +1322,28 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  Widget _botonNumero(String texto) {
+  Widget _botonNumero(String texto, {VoidCallback? onPressed}) {
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: () {
+        int cantidad = int.tryParse(texto) ?? 0;
+        setState(() {
+          if (productoSeleccionado != null) {
+            // Caso 1: Ya hay un producto seleccionado → sumar al mismo
+            productoSeleccionado!['cantidad'] =
+                (productoSeleccionado!['cantidad'] as int) + cantidad;
+
+            productoSeleccionado!['total'] =
+                (productoSeleccionado!['cantidad'] as int) *
+                (productoSeleccionado!['precio'] as double);
+
+            _recalcularTotales();
+          } else {
+            // Caso 2: No hay producto seleccionado → guardamos en buffer
+            cantidadBuffer =
+                cantidadBuffer * 10 + cantidad; // permite 12, 123, etc
+          }
+        });
+      },
       style: _botonEstilo(),
       child: Text(
         texto,
@@ -1198,27 +1357,167 @@ class _OrderPageState extends State<OrderPage> {
       final index = ordenes.indexWhere(
         (item) => item['nombre'] == producto['nombre'],
       );
+
+      int cantidad = (cantidadBuffer > 0) ? cantidadBuffer : 1;
+
       if (index >= 0) {
-        ordenes[index]['cantidad']++;
+        ordenes[index]['cantidad'] += cantidad;
         ordenes[index]['total'] =
             ordenes[index]['cantidad'] * ordenes[index]['precio'];
+        productoSeleccionado = ordenes[index];
       } else {
-        ordenes.add({
+        var nuevo = {
           "nombre": producto['nombre'],
           "precio": producto['precio'],
-          "cantidad": 1,
-          "total": producto['precio'],
-        });
+          "cantidad": cantidad,
+          "total": producto['precio'] * cantidad,
+          "nota": "",
+        };
+        ordenes.add(nuevo);
+        productoSeleccionado = nuevo;
       }
 
-      totalItems = ordenes.fold(
-        0,
-        (sum, item) => sum + item['cantidad'] as int,
-      );
-      totalGeneral = ordenes.fold(
-        0.0,
-        (sum, item) => sum + (item['total'] as double),
-      );
+      cantidadBuffer = 0; // limpiamos el buffer
+      _recalcularTotales();
     });
+  }
+
+  void _agregarNota() {
+    if (productoSeleccionado == null) return;
+
+    TextEditingController notaController = TextEditingController(
+      text: productoSeleccionado!['nota'] ?? "",
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Agregar nota"),
+          content: SingleChildScrollView(
+            child: TextField(
+              controller: notaController,
+              decoration: const InputDecoration(hintText: "Escribe la nota..."),
+              maxLines: 3,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  productoSeleccionado!['nota'] = notaController.text;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Aumentar cantidad del producto seleccionado
+  void _incrementarCantidad() {
+    if (productoSeleccionado != null) {
+      setState(() {
+        productoSeleccionado!['cantidad'] =
+            (productoSeleccionado!['cantidad'] as int) + 1;
+        productoSeleccionado!['total'] =
+            (productoSeleccionado!['cantidad'] as int) *
+            (productoSeleccionado!['precio'] as double);
+
+        _recalcularTotales();
+      });
+    }
+  }
+
+  // Disminuir cantidad del producto seleccionado
+  void _disminuirCantidad() {
+    if (productoSeleccionado != null) {
+      setState(() {
+        if ((productoSeleccionado!['cantidad'] as int) > 1) {
+          productoSeleccionado!['cantidad'] =
+              (productoSeleccionado!['cantidad'] as int) - 1;
+          productoSeleccionado!['total'] =
+              (productoSeleccionado!['cantidad'] as int) *
+              (productoSeleccionado!['precio'] as double);
+        } else {
+          ordenes.remove(productoSeleccionado);
+          productoSeleccionado = null;
+        }
+
+        _recalcularTotales();
+      });
+    }
+  }
+
+  // Eliminar producto seleccionado
+  void _eliminarProducto() {
+    if (productoSeleccionado != null) {
+      setState(() {
+        ordenes.remove(productoSeleccionado);
+        productoSeleccionado = null;
+        _recalcularTotales();
+      });
+    }
+  }
+
+  // Recalcular totales
+  void _recalcularTotales() {
+    totalItems = ordenes.fold(0, (sum, item) => sum + item['cantidad'] as int);
+    totalGeneral = ordenes.fold(
+      0.0,
+      (sum, item) => sum + (item['total'] as double),
+    );
+  }
+
+  void _cambiarTiempo() {
+    if (productoSeleccionado == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Seleccionar tiempo"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    productoSeleccionado!['tiempo'] = 1;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text("1"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    productoSeleccionado!['tiempo'] = 2;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text("2"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    productoSeleccionado!['tiempo'] = 3;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text("3"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
