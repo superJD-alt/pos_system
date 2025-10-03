@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pos_system/pages/order.dart';
 
 class LoginPos extends StatelessWidget {
   const LoginPos({super.key});
@@ -87,7 +88,12 @@ class LoginPos extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const OrderPage()),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 30),
