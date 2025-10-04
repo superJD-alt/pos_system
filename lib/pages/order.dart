@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
 class OrderPage extends StatefulWidget {
-  const OrderPage({super.key});
+  final int numeroMesa;
+  final int comensales;
+
+  const OrderPage({
+    super.key,
+    required this.numeroMesa,
+    required this.comensales,
+  });
 
   @override
   State<OrderPage> createState() => _OrderPageState();
@@ -702,10 +709,39 @@ class _OrderPageState extends State<OrderPage> {
               child: Row(
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('ATRÁS'),
                     style: _botonEstilo(minWidth: 150, minHeight: 60),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Mesa ${widget.numeroMesa}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${widget.comensales} comensales',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                   const Spacer(),
                   ElevatedButton.icon(

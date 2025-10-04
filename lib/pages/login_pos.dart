@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pos_system/pages/order.dart';
+import 'package:pos_system/pages/custom_table.dart';
 
 class LoginPos extends StatelessWidget {
   const LoginPos({super.key});
@@ -91,7 +91,7 @@ class LoginPos extends StatelessWidget {
             onPressed: () {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const OrderPage()),
+                MaterialPageRoute(builder: (context) => const CustomTable()),
               );
             },
             style: ElevatedButton.styleFrom(
