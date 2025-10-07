@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894508282649",
+    "project_id": "systempos-86ada",
+    "storage_bucket": "systempos-86ada.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894508282649:android:e54c774834627ff65d0b88",
+        "android_client_info": {
+          "package_name": "com.example.pos_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAI-yQO6O2ydhNbFVltKCvf5yZ2NoBU9U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

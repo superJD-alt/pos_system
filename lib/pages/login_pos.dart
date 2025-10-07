@@ -1,8 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pos_system/pages/custom_table.dart';
 
-class LoginPos extends StatelessWidget {
+class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
+
+  @override
+  State<LoginPos> createState() => _LoginPosState();
+}
+
+class _LoginPosState extends State<LoginPos> {
+  final TextEditingController userController = TextEditingController();
+  final TextEditingController passController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String? errorMessage;
+  bool loading = false;
+
+  Future<void> login() async {
+    final user = userController.text.trim();
+    final pass = passController.text.trim();
+
+    if (user.isEmpty || pass.isEmpty) {
+      setState(() => errorMessage = 'Por favor ingrese usuario y contraseña');
+      return;
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(user) || !RegExp(r'^\d+$').hasMatch(pass)) {
+      setState(() => errorMessage = 'Solo se permiten números');
+      return;
+    }
+
+    final email =
+        '$user@pos.com'; // 👉 convertimos el usuario numérico en email válido
+
+    try {
+      setState(() {
+        errorMessage = null;
+        loading = true;
+      });
+
+      await _auth.signInWithEmailAndPassword(email: email, password: pass);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const CustomTable()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        setState(() => errorMessage = 'Usuario no encontrado');
+      } else if (e.code == 'wrong-password') {
+        setState(() => errorMessage = 'Contraseña incorrecta');
+      } else {
+        setState(() => errorMessage = 'Error: ${e.message}');
+      }
+    } finally {
+      setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -10,7 +66,6 @@ class LoginPos extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final bool isWide = size.width > 600;
 
-    // Imagen
     Widget imageWidget = ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Image.asset(
@@ -21,7 +76,6 @@ class LoginPos extends StatelessWidget {
       ),
     );
 
-    // Formulario
     Widget formWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -46,15 +100,13 @@ class LoginPos extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         TextField(
+          controller: userController,
+          keyboardType: TextInputType.number,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white10,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 25,
-              horizontal: 16,
-            ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-            hintText: 'Ingrese su usuario',
+            hintText: 'Ingrese su usuario (solo números)',
             hintStyle: const TextStyle(color: Colors.white54, fontSize: 18),
           ),
           style: const TextStyle(color: Colors.white),
@@ -70,14 +122,12 @@ class LoginPos extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         TextField(
+          controller: passController,
           obscureText: true,
+          keyboardType: TextInputType.number,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white10,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 25,
-              horizontal: 16,
-            ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
             hintText: 'Ingrese su contraseña',
             hintStyle: const TextStyle(color: Colors.white54, fontSize: 18),
@@ -85,15 +135,21 @@ class LoginPos extends StatelessWidget {
           style: const TextStyle(color: Colors.white),
         ),
         const SizedBox(height: 25),
+
+        if (errorMessage != null)
+          Center(
+            child: Text(
+              errorMessage!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+            ),
+          ),
+
+        const SizedBox(height: 10),
+
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const CustomTable()),
-              );
-            },
+            onPressed: loading ? null : login,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 30),
@@ -101,14 +157,16 @@ class LoginPos extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
-            child: Text(
-              'Iniciar Sesión',
-              style: TextStyle(
-                fontSize: isWide ? 22 : 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
+            child: loading
+                ? const CircularProgressIndicator(color: Colors.black)
+                : Text(
+                    'Iniciar Sesión',
+                    style: TextStyle(
+                      fontSize: isWide ? 22 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
           ),
         ),
       ],
@@ -120,7 +178,6 @@ class LoginPos extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             if (orientation == Orientation.landscape) {
-              // 👉 Landscape: fila con imagen izquierda y formulario derecha
               return Row(
                 children: [
                   Expanded(flex: 1, child: Center(child: imageWidget)),
@@ -134,7 +191,6 @@ class LoginPos extends StatelessWidget {
                 ],
               );
             } else {
-              // 👉 Portrait: columna con imagen arriba y formulario abajo
               return SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
