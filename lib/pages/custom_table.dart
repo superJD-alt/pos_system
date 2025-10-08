@@ -1,6 +1,8 @@
+// custom_table.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:pos_system/pages/order.dart';
+import 'mesa_state.dart';
 
 class CustomTable extends StatelessWidget {
   const CustomTable({super.key});
@@ -11,7 +13,7 @@ class CustomTable extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Custom Tables")),
+      appBar: AppBar(title: const Text("Seleccion de mesas")),
       backgroundColor: Colors.grey[300],
       body: Stack(
         children: [
@@ -37,7 +39,6 @@ class CustomTable extends StatelessWidget {
               numeroMesa: 2,
             ),
           ),
-
           // mesa 3 (4 personas)
           Positioned(
             left: screenWidth * 0.05,
@@ -60,7 +61,6 @@ class CustomTable extends StatelessWidget {
               numeroMesa: 4,
             ),
           ),
-
           //mesa 5 (6 personas)
           Positioned(
             left: screenWidth * 0.40,
@@ -83,7 +83,6 @@ class CustomTable extends StatelessWidget {
               numeroMesa: 6,
             ),
           ),
-
           //mesa 7 (8 personas)
           Positioned(
             left: screenWidth * 0.55,
@@ -117,7 +116,6 @@ class CustomTable extends StatelessWidget {
               numeroMesa: 9,
             ),
           ),
-
           //mesa 10 (10 personas)
           Positioned(
             left: screenWidth * 0.05,
@@ -157,13 +155,24 @@ class MesaBase extends StatefulWidget {
 }
 
 class _MesaBaseState extends State<MesaBase> {
-  int? comensalesActuales;
+  final MesaState mesaState = MesaState();
   String numeroSeleccionado = '';
 
   void _mostrarTecladoComensales() {
-    setState(() {
-      numeroSeleccionado = '';
-    });
+    // Verificar si la mesa ya está ocupada
+    final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+
+    // Si la mesa ya está ocupada, ir directo a OrderPage
+    if (mesaOcupada) {
+      final int comensalesActuales = mesaState.obtenerComensales(
+        widget.numeroMesa,
+      )!;
+      _irAOrderPage(comensalesActuales);
+      return;
+    }
+
+    // Si la mesa NO está ocupada, mostrar teclado para ingresar comensales
+    numeroSeleccionado = '';
 
     showDialog(
       context: context,
@@ -179,7 +188,6 @@ class _MesaBaseState extends State<MesaBase> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 15),
-                // Display del número seleccionado
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -216,39 +224,24 @@ class _MesaBaseState extends State<MesaBase> {
   Widget _buildTecladoNumerico(StateSetter setDialogState) {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildTeclaNumero('1', setDialogState),
-            _buildTeclaNumero('2', setDialogState),
-            _buildTeclaNumero('3', setDialogState),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildTeclaNumero('4', setDialogState),
-            _buildTeclaNumero('5', setDialogState),
-            _buildTeclaNumero('6', setDialogState),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildTeclaNumero('7', setDialogState),
-            _buildTeclaNumero('8', setDialogState),
-            _buildTeclaNumero('9', setDialogState),
-          ],
-        ),
-        const SizedBox(height: 10),
+        for (int row = 0; row < 3; row++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                for (int col = 1; col <= 3; col++)
+                  _buildTeclaNumero('${row * 3 + col}', setDialogState),
+              ],
+            ),
+          ),
+        const SizedBox(height: 5),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _buildTeclaNumero('0', setDialogState),
             _buildTeclaConfirmar(),
-            _buildTeclaLimpiar(),
+            _buildTeclaCancelar(),
           ],
         ),
       ],
@@ -259,10 +252,7 @@ class _MesaBaseState extends State<MesaBase> {
     return ElevatedButton(
       onPressed: () {
         setDialogState(() {
-          // Limitar a 2 dígitos máximo
-          if (numeroSeleccionado.length < 2) {
-            numeroSeleccionado += numero;
-          }
+          if (numeroSeleccionado.length < 2) numeroSeleccionado += numero;
         });
       },
       style: ElevatedButton.styleFrom(
@@ -284,21 +274,13 @@ class _MesaBaseState extends State<MesaBase> {
         if (numeroSeleccionado.isNotEmpty) {
           int comensales = int.parse(numeroSeleccionado);
           if (comensales > 0) {
-            setState(() {
-              comensalesActuales = comensales;
-            });
-            Navigator.pop(context);
+            // MARCA LA MESA COMO OCUPADA
+            mesaState.ocuparMesa(widget.numeroMesa, comensales);
 
-            // Navegar a OrderPage con los parámetros
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OrderPage(
-                  numeroMesa: widget.numeroMesa,
-                  comensales: comensales,
-                ),
-              ),
-            );
+            Navigator.pop(context); // Cierra el diálogo
+
+            // Navegar a OrderPage
+            _irAOrderPage(comensales);
           }
         }
       },
@@ -312,14 +294,9 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  Widget _buildTeclaLimpiar() {
+  Widget _buildTeclaCancelar() {
     return ElevatedButton(
-      onPressed: () {
-        setState(() {
-          comensalesActuales = null;
-        });
-        Navigator.pop(context);
-      },
+      onPressed: () => Navigator.pop(context),
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(60, 60),
         backgroundColor: Colors.red,
@@ -330,17 +307,32 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
+  void _irAOrderPage(int comensales) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            OrderPage(numeroMesa: widget.numeroMesa, comensales: comensales),
+      ),
+    ).then((_) => setState(() {})); // Actualiza el color de la mesa al volver
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool esCircular = widget.cantidadPersonas <= 4;
+    final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
+    final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+
     return GestureDetector(
       onTap: _mostrarTecladoComensales,
-      child: esCircular ? _mesaCircular() : _mesaRectangular(),
+      child: esCircular
+          ? _mesaCircular(comensales, estaOcupada)
+          : _mesaRectangular(comensales, estaOcupada),
     );
   }
 
-  // 🔹 Diseño circular (2 o 4 personas)
-  Widget _mesaCircular() {
+  // 🔹 Diseño circular
+  Widget _mesaCircular(int? comensales, bool estaOcupada) {
     double radio = (max(widget.ancho, widget.alto) / 2) + 30;
     double diametroTotal = (radio + 20) * 2;
 
@@ -354,7 +346,8 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              color: comensalesActuales != null ? Colors.green : Colors.blue,
+              // VERDE = disponible, ROJO = ocupada
+              color: estaOcupada ? Colors.red : Colors.green,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
@@ -369,9 +362,9 @@ class _MesaBaseState extends State<MesaBase> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (comensalesActuales != null)
+                  if (comensales != null)
                     Text(
-                      '$comensalesActuales',
+                      '$comensales',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -401,43 +394,32 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // 🔸 Diseño rectangular (más de 4 personas)
-  Widget _mesaRectangular() {
+  // 🔸 Diseño rectangular
+  Widget _mesaRectangular(int? comensales, bool estaOcupada) {
     const double separacion = 20;
+    List<Widget> comensalesWidgets = [];
 
-    List<Widget> comensales = [];
-
-    // Calcular distribución según cantidad de personas
     int personasPorLadoLargo = 0;
-
-    if (widget.cantidadPersonas == 6) {
+    if (widget.cantidadPersonas == 6)
       personasPorLadoLargo = 2;
-    } else if (widget.cantidadPersonas == 8) {
+    else if (widget.cantidadPersonas == 8)
       personasPorLadoLargo = 3;
-    } else if (widget.cantidadPersonas == 10) {
+    else if (widget.cantidadPersonas == 10)
       personasPorLadoLargo = 4;
-    }
 
-    // 🔹 Cabecera izquierda
-    comensales.add(_buildComensal(-widget.ancho / 2 - separacion, 0));
-
-    // 🔹 Lado superior
+    comensalesWidgets.add(_buildComensal(-widget.ancho / 2 - separacion, 0));
     for (int i = 0; i < personasPorLadoLargo; i++) {
       double x =
           (widget.ancho / (personasPorLadoLargo + 1)) * (i + 1) -
           widget.ancho / 2;
-      comensales.add(_buildComensal(x, -widget.alto / 2 - separacion));
+      comensalesWidgets.add(_buildComensal(x, -widget.alto / 2 - separacion));
     }
-
-    // 🔹 Cabecera derecha
-    comensales.add(_buildComensal(widget.ancho / 2 + separacion, 0));
-
-    // 🔹 Lado inferior
+    comensalesWidgets.add(_buildComensal(widget.ancho / 2 + separacion, 0));
     for (int i = 0; i < personasPorLadoLargo; i++) {
       double x =
           (widget.ancho / (personasPorLadoLargo + 1)) * (i + 1) -
           widget.ancho / 2;
-      comensales.add(_buildComensal(x, widget.alto / 2 + separacion));
+      comensalesWidgets.add(_buildComensal(x, widget.alto / 2 + separacion));
     }
 
     return SizedBox(
@@ -450,7 +432,8 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              color: comensalesActuales != null ? Colors.green : Colors.blue,
+              // VERDE = disponible, ROJO = ocupada
+              color: estaOcupada ? Colors.red : Colors.green,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Center(
@@ -465,9 +448,9 @@ class _MesaBaseState extends State<MesaBase> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (comensalesActuales != null)
+                  if (comensales != null)
                     Text(
-                      '$comensalesActuales',
+                      '$comensales',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -478,7 +461,7 @@ class _MesaBaseState extends State<MesaBase> {
               ),
             ),
           ),
-          ...comensales,
+          ...comensalesWidgets,
         ],
       ),
     );

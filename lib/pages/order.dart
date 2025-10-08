@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pos_system/models/pedido.dart';
+import 'package:pos_system/pages/mesa_state.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -15,10 +17,11 @@ class OrderPage extends StatefulWidget {
 }
 
 class _OrderPageState extends State<OrderPage> {
+  late List<Pedido> pedidos; //lista de pedidos
+  final MesaState mesaState = MesaState();
+
   String categoriaSeleccionada = "Alimentos"; // valor inicial
-
   int cantidadBuffer = 0; //contador para botones
-
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
 
@@ -28,7 +31,34 @@ class _OrderPageState extends State<OrderPage> {
   List<Map<String, dynamic>> ordenes =
       []; //lista para productos en tabla de ordenes
 
-  // Productos: solo nombres, para botones sin imagen
+  Set<int> productosEnviados = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar los pedidos existentes de esta mesa
+    _cargarPedidosExistentes();
+  }
+
+  void _cargarPedidosExistentes() {
+    setState(() {
+      ordenes = List.from(mesaState.obtenerPedidos(widget.numeroMesa));
+      _recalcularTotales();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Guardar los pedidos al salir de la página
+    _guardarPedidos();
+    super.dispose();
+  }
+
+  void _guardarPedidos() {
+    mesaState.guardarPedidos(widget.numeroMesa, ordenes);
+  }
+
+  // Productos: solo nombres, para botones con imagen
   final Map<String, dynamic> productos = {
     "Entradas": <Map<String, dynamic>>[
       {
@@ -693,582 +723,610 @@ class _OrderPageState extends State<OrderPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey,
-      resizeToAvoidBottomInset:
-          false, //para abrir el teclado de notas sin que la UI de mueva
-      body: Column(
-        children: [
-          // ================== HEADER SUPERIOR ==================
-          Padding(
-            padding: const EdgeInsets.all(2.0),
-            child: Container(
-              height: 70,
-              width: double.infinity,
-              color: Colors.white,
-              child: Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('ATRÁS'),
-                    style: _botonEstilo(minWidth: 150, minHeight: 60),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+    return WillPopScope(
+      onWillPop: () async {
+        _guardarPedidos();
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey,
+        resizeToAvoidBottomInset:
+            false, //para abrir el teclado de notas sin que la UI de mueva
+        body: Column(
+          children: [
+            // ================== HEADER SUPERIOR ==================
+            Padding(
+              padding: const EdgeInsets.all(2.0),
+              child: Container(
+                height: 70,
+                width: double.infinity,
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _guardarPedidos();
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('ATRÁS'),
+                      style: _botonEstilo(minWidth: 150, minHeight: 60),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Mesa ${widget.numeroMesa}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Mesa ${widget.numeroMesa}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${widget.comensales} comensales',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
+                          Text(
+                            '${widget.comensales} comensales',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.menu, size: 30),
-                    label: const Text(''),
-                    style: _botonEstilo(minWidth: 150, minHeight: 60),
-                  ),
-                ],
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.menu, size: 30),
+                      label: const Text(''),
+                      style: _botonEstilo(minWidth: 150, minHeight: 60),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 5),
+            const SizedBox(height: 5),
 
-          // ================== FILA PRINCIPAL ==================
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(2.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ========== LADO IZQUIERDO ==========
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      children: [
-                        // ===== TABLA DE ORDENES =====
-                        Container(
-                          height: 350, // Altura fija más pequeña
-                          child: Container(
-                            color: Colors.grey[100],
-                            width: double.infinity,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: DataTable(
-                                headingRowColor: WidgetStateProperty.all(
-                                  Colors.grey[400],
-                                ),
-                                border: TableBorder.symmetric(),
-                                columns: const [
-                                  DataColumn(label: Text('Cant')),
-                                  DataColumn(label: Text('C')),
-                                  DataColumn(label: Text('Descripción')),
-                                  DataColumn(label: Text('T')),
-                                  DataColumn(label: Text('Precio')),
-                                  DataColumn(label: Text('Total')),
-                                ],
-                                rows: ordenes.expand((item) {
-                                  bool seleccionado =
-                                      productoSeleccionado == item;
+            // ================== FILA PRINCIPAL ==================
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(2.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ========== LADO IZQUIERDO ==========
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        children: [
+                          // ===== TABLA DE ORDENES =====
+                          Container(
+                            height: 350, // Altura fija más pequeña
+                            child: Container(
+                              color: Colors.grey[100],
+                              width: double.infinity,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    Colors.grey[400],
+                                  ),
+                                  border: TableBorder.symmetric(),
+                                  columns: const [
+                                    DataColumn(label: Text('Cant')),
+                                    DataColumn(label: Text('C')),
+                                    DataColumn(label: Text('Descripción')),
+                                    DataColumn(label: Text('T')),
+                                    DataColumn(label: Text('Precio')),
+                                    DataColumn(label: Text('Total')),
+                                  ],
+                                  rows: ordenes.expand((item) {
+                                    bool seleccionado =
+                                        productoSeleccionado == item;
 
-                                  // Fila principal del producto
-                                  final mainRow = DataRow(
-                                    selected: seleccionado,
-                                    onSelectChanged: (val) {
-                                      setState(() {
-                                        productoSeleccionado = item;
-                                      });
-                                    },
-                                    cells: [
-                                      DataCell(
-                                        Text(item['cantidad'].toString()),
-                                      ),
-                                      const DataCell(
-                                        SizedBox(
-                                          width: 10,
-                                          child: Text(
-                                            '/',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(Text(item['nombre'])),
-                                      DataCell(
-                                        SizedBox(
-                                          width: 10,
-                                          child: Text(
-                                            item['tiempo']?.toString() ?? '1',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(Text("\$${item['precio']}")),
-                                      DataCell(
-                                        Text(
-                                          "\$${(item['precio'] * item['cantidad']).toStringAsFixed(2)}",
-                                        ),
-                                      ),
-                                    ],
-                                  );
-
-                                  // Fila extra para la nota, si existe
-                                  if ((item['nota'] ?? "").isNotEmpty) {
-                                    final noteRow = DataRow(
+                                    // Fila principal del producto
+                                    final mainRow = DataRow(
+                                      selected: seleccionado,
+                                      onSelectChanged: (val) {
+                                        setState(() {
+                                          productoSeleccionado = item;
+                                        });
+                                      },
                                       cells: [
-                                        const DataCell(SizedBox()), // vacío
-                                        const DataCell(SizedBox()), // vacío
                                         DataCell(
-                                          Text(
-                                            "Nota: ${item['nota']}",
-                                            style: const TextStyle(
-                                              fontStyle: FontStyle.italic,
-                                              color: Colors.grey,
+                                          Text(item['cantidad'].toString()),
+                                        ),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 10,
+                                            child: Text(
+                                              item['enviado'] == true
+                                                  ? '*'
+                                                  : '/',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: item['enviado'] == true
+                                                    ? Colors.green
+                                                    : Colors.black,
+                                                fontWeight:
+                                                    item['enviado'] == true
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        const DataCell(SizedBox()), // vacío
-                                        const DataCell(SizedBox()), // vacío
+                                        DataCell(Text(item['nombre'])),
+                                        DataCell(
+                                          SizedBox(
+                                            width: 10,
+                                            child: Text(
+                                              item['tiempo']?.toString() ?? '1',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(Text("\$${item['precio']}")),
+                                        DataCell(
+                                          Text(
+                                            "\$${(item['precio'] * item['cantidad']).toStringAsFixed(2)}",
+                                          ),
+                                        ),
                                       ],
                                     );
-                                    return [mainRow, noteRow];
-                                  } else {
-                                    return [mainRow];
-                                  }
-                                }).toList(),
+
+                                    // Fila extra para la nota, si existe
+                                    if ((item['nota'] ?? "").isNotEmpty) {
+                                      final noteRow = DataRow(
+                                        cells: [
+                                          const DataCell(SizedBox()), // vacío
+                                          const DataCell(SizedBox()), // vacío
+                                          DataCell(
+                                            Text(
+                                              "Nota: ${item['nota']}",
+                                              style: const TextStyle(
+                                                fontStyle: FontStyle.italic,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                          const DataCell(SizedBox()), // vacío
+                                          const DataCell(SizedBox()),
+                                          const DataCell(SizedBox()), // vacío
+                                        ],
+                                      );
+                                      return [mainRow, noteRow];
+                                    } else {
+                                      return [mainRow];
+                                    }
+                                  }).toList(),
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                        const SizedBox(height: 5),
+                          const SizedBox(height: 5),
 
-                        // ===== CONTENEDOR TOTAL =====
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  readOnly: true,
-                                  controller: TextEditingController(
-                                    text: totalItems.toString(),
-                                  ),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Total de ítems',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextField(
-                                  readOnly: true,
-                                  controller: TextEditingController(
-                                    text:
-                                        "\$${totalGeneral.toStringAsFixed(2)}",
-                                  ),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Total general',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 5),
-
-                        // ===== BOTONES POS =====
-                        Container(
-                          height: 300,
-                          padding: EdgeInsets.zero,
-                          margin: EdgeInsets.zero,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(2),
-                            border: Border.all(color: Colors.grey.shade400),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: GridView.count(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 9,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 3,
-                              physics: const NeverScrollableScrollPhysics(),
+                          // ===== CONTENEDOR TOTAL =====
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            child: Row(
                               children: [
-                                _botonAccion(
-                                  Icons.local_offer,
-                                  "NOTA",
-                                  _agregarNota,
+                                Expanded(
+                                  child: TextField(
+                                    readOnly: true,
+                                    controller: TextEditingController(
+                                      text: totalItems.toString(),
+                                    ),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Total de ítems',
+                                    ),
+                                  ),
                                 ),
-                                _botonAccion(Icons.cancel, "CANCELAR", () {}),
-                                _botonAccion(
-                                  Icons.access_time,
-                                  "TIEMPOS",
-                                  _cambiarTiempo,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextField(
+                                    readOnly: true,
+                                    controller: TextEditingController(
+                                      text:
+                                          "\$${totalGeneral.toStringAsFixed(2)}",
+                                    ),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Total general',
+                                    ),
+                                  ),
                                 ),
-                                _botonAccion(
-                                  Icons.delete,
-                                  "",
-                                  _eliminarProducto,
-                                ),
-
-                                _botonAccion(
-                                  Icons.swap_horiz,
-                                  "TRANSFERIR",
-                                  () {},
-                                ),
-                                _botonNumero(
-                                  "1",
-                                  onPressed: () {
-                                    if (productoSeleccionado != null) {
-                                      setState(() {
-                                        productoSeleccionado!['cantidad'] = 1;
-                                        productoSeleccionado!['total'] =
-                                            (productoSeleccionado!['cantidad']
-                                                as int) *
-                                            (productoSeleccionado!['precio']
-                                                as double);
-                                        _recalcularTotales();
-                                      });
-                                    }
-                                  },
-                                ),
-
-                                _botonNumero("2"),
-                                _botonNumero("3"),
-
-                                _botonAccion(Icons.print, "COMANDA", () {}),
-                                _botonNumero("4"),
-                                _botonNumero("5"),
-                                _botonNumero("6"),
-
-                                _botonAccion(
-                                  Icons.receipt_long,
-                                  "CUENTA",
-                                  () {},
-                                ),
-                                _botonNumero("7"),
-                                _botonNumero("8"),
-                                _botonNumero("9"),
-
-                                const SizedBox.shrink(),
-                                _botonAccion(
-                                  Icons.add,
-                                  "+",
-                                  _incrementarCantidad,
-                                ),
-                                _botonAccion(
-                                  Icons.remove,
-                                  "-",
-                                  _disminuirCantidad,
-                                ),
-                                _botonNumero("0"),
                               ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
 
-                  const SizedBox(width: 10),
+                          const SizedBox(height: 5),
 
-                  // ========== LADO DERECHO ==========
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      children: [
-                        // ===== BOTONES DE CATEGORIAS =====
-                        Container(
-                          height: 70,
-                          color: Colors.grey[300],
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              _categoriaBoton('Entradas'),
-                              _categoriaBoton('Ensaladas'),
-                              _categoriaBoton('Sopas'),
-                              _categoriaBoton('Quesos'),
-                              _categoriaBoton('Papas'),
-                              _categoriaBoton('Todos'),
-                              _categoriaBoton('Costillas'),
-                              _categoriaBoton('Molcajetes'),
-                              _categoriaBoton('Cortes'),
-                              _categoriaBoton('Tacos'),
-                              _categoriaBoton('Volcanes'),
-                              _categoriaBoton('Postres'),
-                              _categoriaBoton('Bebidas'),
-                              //_categoriaBoton('Buscar..', icono: Icons.search),
-                            ],
-                          ),
-                        ),
+                          // ===== BOTONES POS =====
+                          Container(
+                            height: 300,
+                            padding: EdgeInsets.zero,
+                            margin: EdgeInsets.zero,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(color: Colors.grey.shade400),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: GridView.count(
+                                crossAxisCount: 4,
+                                mainAxisSpacing: 9,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 3,
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: [
+                                  _botonAccion(
+                                    Icons.local_offer,
+                                    "NOTA",
+                                    _agregarNota,
+                                  ),
+                                  _botonAccion(Icons.cancel, "CANCELAR", () {}),
+                                  _botonAccion(
+                                    Icons.access_time,
+                                    "TIEMPOS",
+                                    _cambiarTiempo,
+                                  ),
+                                  _botonAccion(
+                                    Icons.delete,
+                                    "",
+                                    _eliminarProducto,
+                                  ),
 
-                        const SizedBox(height: 5),
-
-                        // ===== GRID DE PRODUCTOS =====
-                        Expanded(
-                          child: Container(
-                            color: Colors.grey[300],
-                            padding: const EdgeInsets.all(10),
-                            child: categoriaSeleccionada == "Bebidas"
-                                ? ListView(
-                                    children: (productos["Bebidas"] as Map<String, List>).entries.map((
-                                      entry,
-                                    ) {
-                                      final subCategoria = entry.key;
-                                      final lista = entry.value;
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          //  Encabezado de la subcategoría
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 8.0,
-                                            ),
-                                            child: Text(
-                                              subCategoria,
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-
-                                          //  Grid con productos de esa subcategoría
-                                          GridView.builder(
-                                            shrinkWrap: true,
-                                            physics:
-                                                const NeverScrollableScrollPhysics(),
-                                            itemCount: lista.length,
-                                            gridDelegate:
-                                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                                  crossAxisCount: 3,
-                                                  childAspectRatio: 1.0,
-                                                  mainAxisSpacing: 10,
-                                                  crossAxisSpacing: 10,
-                                                ),
-                                            itemBuilder: (context, index) {
-                                              final producto = lista[index];
-                                              return ElevatedButton(
-                                                onPressed: () {
-                                                  _agregarProducto(producto);
-                                                },
-                                                style: ButtonStyle(
-                                                  backgroundColor:
-                                                      WidgetStateProperty.all(
-                                                        Colors.white,
-                                                      ),
-                                                  foregroundColor:
-                                                      WidgetStateProperty.all(
-                                                        Colors.black,
-                                                      ),
-                                                  shape: WidgetStateProperty.all(
-                                                    RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  padding:
-                                                      WidgetStateProperty.all(
-                                                        const EdgeInsets.all(8),
-                                                      ),
-                                                ),
-                                                child: Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    Image.asset(
-                                                      producto['imagen'],
-                                                      width: 100,
-                                                      height: 100,
-                                                      fit: BoxFit.cover,
-                                                    ),
-                                                    const SizedBox(height: 6),
-                                                    Text(
-                                                      producto['nombre'],
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      "\$${producto['precio']}",
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.green,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
-                                  )
-                                : GridView.builder(
-                                    itemCount:
-                                        productos[categoriaSeleccionada]
-                                            ?.length ??
-                                        0,
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 3,
-                                          childAspectRatio: 1.0,
-                                          mainAxisSpacing: 10,
-                                          crossAxisSpacing: 10,
-                                        ),
-                                    itemBuilder: (context, index) {
-                                      final producto =
-                                          productos[categoriaSeleccionada]![index];
-                                      return ElevatedButton(
-                                        onPressed: () {
-                                          //_agregarProducto(producto);
-                                          setState(() {
-                                            // Buscar si ya existe en la orden
-                                            int indexEnOrden = ordenes
-                                                .indexWhere(
-                                                  (p) =>
-                                                      p['nombre'] ==
-                                                      producto['nombre'],
-                                                );
-                                            if (indexEnOrden != -1) {
-                                              // Ya existe → sumamos 1 a la cantidad
-                                              ordenes[indexEnOrden]['cantidad'] =
-                                                  (ordenes[indexEnOrden]['cantidad']
-                                                      as int) +
-                                                  1;
-                                              ordenes[indexEnOrden]['total'] =
-                                                  (ordenes[indexEnOrden]['cantidad']
-                                                      as int) *
-                                                  (ordenes[indexEnOrden]['precio']
-                                                      as double);
-                                              productoSeleccionado =
-                                                  ordenes[indexEnOrden];
-                                            } else {
-                                              // Nuevo producto bien tipado
-                                              Map<String, dynamic> nuevo = {
-                                                "nombre": producto['nombre'],
-                                                "precio": producto['precio'],
-                                                "imagen": producto['imagen'],
-                                                "cantidad": 1,
-                                                "total": producto['precio'],
-                                              };
-                                              ordenes.add(nuevo);
-                                              productoSeleccionado = nuevo;
-                                            }
-
-                                            // Recalcular totales
-                                            totalItems = ordenes.fold(
-                                              0,
-                                              (sum, item) =>
-                                                  sum +
-                                                  (item['cantidad'] as int),
-                                            );
-                                            totalGeneral = ordenes.fold(
-                                              0.0,
-                                              (sum, item) =>
-                                                  sum +
-                                                  (item['total'] as double),
-                                            );
-                                          });
-                                        },
-                                        style: ButtonStyle(
-                                          backgroundColor:
-                                              WidgetStateProperty.all(
-                                                Colors.white,
-                                              ),
-                                          foregroundColor:
-                                              WidgetStateProperty.all(
-                                                Colors.black,
-                                              ),
-                                          shape: WidgetStateProperty.all(
-                                            RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          padding: WidgetStateProperty.all(
-                                            const EdgeInsets.all(8),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Image.asset(
-                                              producto['imagen'],
-                                              width: 100,
-                                              height: 100,
-                                              fit: BoxFit.cover,
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              producto['nombre'],
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "\$${producto['precio']}",
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
+                                  _botonAccion(
+                                    Icons.swap_horiz,
+                                    "TRANSFERIR",
+                                    () {},
+                                  ),
+                                  _botonNumero(
+                                    "1",
+                                    onPressed: () {
+                                      if (productoSeleccionado != null) {
+                                        setState(() {
+                                          productoSeleccionado!['cantidad'] = 1;
+                                          productoSeleccionado!['total'] =
+                                              (productoSeleccionado!['cantidad']
+                                                  as int) *
+                                              (productoSeleccionado!['precio']
+                                                  as double);
+                                          _recalcularTotales();
+                                        });
+                                      }
                                     },
                                   ),
+
+                                  _botonNumero("2"),
+                                  _botonNumero("3"),
+
+                                  _botonAccion(
+                                    Icons.print,
+                                    "COMANDA",
+                                    _enviarComanda,
+                                  ),
+                                  _botonNumero("4"),
+                                  _botonNumero("5"),
+                                  _botonNumero("6"),
+
+                                  _botonAccion(
+                                    Icons.receipt_long,
+                                    'CUENTA',
+                                    _procesarCuenta,
+                                  ),
+                                  _botonNumero("7"),
+                                  _botonNumero("8"),
+                                  _botonNumero("9"),
+
+                                  const SizedBox.shrink(),
+                                  _botonAccion(
+                                    Icons.add,
+                                    "+",
+                                    _incrementarCantidad,
+                                  ),
+                                  _botonAccion(
+                                    Icons.remove,
+                                    "-",
+                                    _disminuirCantidad,
+                                  ),
+                                  _botonNumero("0"),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(width: 10),
+
+                    // ========== LADO DERECHO ==========
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        children: [
+                          // ===== BOTONES DE CATEGORIAS =====
+                          Container(
+                            height: 70,
+                            color: Colors.grey[300],
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                _categoriaBoton('Entradas'),
+                                _categoriaBoton('Ensaladas'),
+                                _categoriaBoton('Sopas'),
+                                _categoriaBoton('Quesos'),
+                                _categoriaBoton('Papas'),
+                                _categoriaBoton('Todos'),
+                                _categoriaBoton('Costillas'),
+                                _categoriaBoton('Molcajetes'),
+                                _categoriaBoton('Cortes'),
+                                _categoriaBoton('Tacos'),
+                                _categoriaBoton('Volcanes'),
+                                _categoriaBoton('Postres'),
+                                _categoriaBoton('Bebidas'),
+                                //_categoriaBoton('Buscar..', icono: Icons.search),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 5),
+
+                          // ===== GRID DE PRODUCTOS =====
+                          Expanded(
+                            child: Container(
+                              color: Colors.grey[300],
+                              padding: const EdgeInsets.all(10),
+                              child: categoriaSeleccionada == "Bebidas"
+                                  ? ListView(
+                                      children: (productos["Bebidas"] as Map<String, List>).entries.map((
+                                        entry,
+                                      ) {
+                                        final subCategoria = entry.key;
+                                        final lista = entry.value;
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            //  Encabezado de la subcategoría
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 8.0,
+                                                  ),
+                                              child: Text(
+                                                subCategoria,
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+
+                                            //  Grid con productos de esa subcategoría
+                                            GridView.builder(
+                                              shrinkWrap: true,
+                                              physics:
+                                                  const NeverScrollableScrollPhysics(),
+                                              itemCount: lista.length,
+                                              gridDelegate:
+                                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                                    crossAxisCount: 3,
+                                                    childAspectRatio: 1.0,
+                                                    mainAxisSpacing: 10,
+                                                    crossAxisSpacing: 10,
+                                                  ),
+                                              itemBuilder: (context, index) {
+                                                final producto = lista[index];
+                                                return ElevatedButton(
+                                                  onPressed: () {
+                                                    _agregarProducto(producto);
+                                                  },
+                                                  style: ButtonStyle(
+                                                    backgroundColor:
+                                                        WidgetStateProperty.all(
+                                                          Colors.white,
+                                                        ),
+                                                    foregroundColor:
+                                                        WidgetStateProperty.all(
+                                                          Colors.black,
+                                                        ),
+                                                    shape: WidgetStateProperty.all(
+                                                      RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    padding:
+                                                        WidgetStateProperty.all(
+                                                          const EdgeInsets.all(
+                                                            8,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Image.asset(
+                                                        producto['imagen'],
+                                                        width: 100,
+                                                        height: 100,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                      Text(
+                                                        producto['nombre'],
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        "\$${producto['precio']}",
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.green,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    )
+                                  : GridView.builder(
+                                      itemCount:
+                                          productos[categoriaSeleccionada]
+                                              ?.length ??
+                                          0,
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 3,
+                                            childAspectRatio: 1.0,
+                                            mainAxisSpacing: 10,
+                                            crossAxisSpacing: 10,
+                                          ),
+                                      itemBuilder: (context, index) {
+                                        final producto =
+                                            productos[categoriaSeleccionada]![index];
+                                        return ElevatedButton(
+                                          onPressed: () {
+                                            //_agregarProducto(producto);
+                                            setState(() {
+                                              // Buscar si ya existe en la orden
+                                              int indexEnOrden = ordenes
+                                                  .indexWhere(
+                                                    (p) =>
+                                                        p['nombre'] ==
+                                                        producto['nombre'],
+                                                  );
+                                              if (indexEnOrden != -1) {
+                                                // Ya existe → sumamos 1 a la cantidad
+                                                ordenes[indexEnOrden]['cantidad'] =
+                                                    (ordenes[indexEnOrden]['cantidad']
+                                                        as int) +
+                                                    1;
+                                                ordenes[indexEnOrden]['total'] =
+                                                    (ordenes[indexEnOrden]['cantidad']
+                                                        as int) *
+                                                    (ordenes[indexEnOrden]['precio']
+                                                        as double);
+                                                productoSeleccionado =
+                                                    ordenes[indexEnOrden];
+                                              } else {
+                                                // Nuevo producto bien tipado
+                                                Map<String, dynamic> nuevo = {
+                                                  "nombre": producto['nombre'],
+                                                  "precio": producto['precio'],
+                                                  "imagen": producto['imagen'],
+                                                  "cantidad": 1,
+                                                  "total": producto['precio'],
+                                                  "enviado": false,
+                                                };
+                                                ordenes.add(nuevo);
+                                                productoSeleccionado = nuevo;
+                                              }
+
+                                              // Recalcular totales
+                                              totalItems = ordenes.fold(
+                                                0,
+                                                (sum, item) =>
+                                                    sum +
+                                                    (item['cantidad'] as int),
+                                              );
+                                              totalGeneral = ordenes.fold(
+                                                0.0,
+                                                (sum, item) =>
+                                                    sum +
+                                                    (item['total'] as double),
+                                              );
+                                            });
+                                          },
+                                          style: ButtonStyle(
+                                            backgroundColor:
+                                                WidgetStateProperty.all(
+                                                  Colors.white,
+                                                ),
+                                            foregroundColor:
+                                                WidgetStateProperty.all(
+                                                  Colors.black,
+                                                ),
+                                            shape: WidgetStateProperty.all(
+                                              RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                            padding: WidgetStateProperty.all(
+                                              const EdgeInsets.all(8),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Image.asset(
+                                                producto['imagen'],
+                                                width: 100,
+                                                height: 100,
+                                                fit: BoxFit.cover,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                producto['nombre'],
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                "\$${producto['precio']}",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1408,6 +1466,7 @@ class _OrderPageState extends State<OrderPage> {
           "cantidad": cantidad,
           "total": producto['precio'] * cantidad,
           "nota": "",
+          "enviado": false,
         };
         ordenes.add(nuevo);
         productoSeleccionado = nuevo;
@@ -1460,6 +1519,10 @@ class _OrderPageState extends State<OrderPage> {
   // Aumentar cantidad del producto seleccionado
   void _incrementarCantidad() {
     if (productoSeleccionado != null) {
+      if (productoSeleccionado!['enviado'] == true) {
+        _mostrarMensajeBloqueo();
+        return;
+      }
       setState(() {
         productoSeleccionado!['cantidad'] =
             (productoSeleccionado!['cantidad'] as int) + 1;
@@ -1475,6 +1538,10 @@ class _OrderPageState extends State<OrderPage> {
   // Disminuir cantidad del producto seleccionado
   void _disminuirCantidad() {
     if (productoSeleccionado != null) {
+      if (productoSeleccionado!['enviado'] == true) {
+        _mostrarMensajeBloqueo();
+        return;
+      }
       setState(() {
         if ((productoSeleccionado!['cantidad'] as int) > 1) {
           productoSeleccionado!['cantidad'] =
@@ -1495,6 +1562,10 @@ class _OrderPageState extends State<OrderPage> {
   // Eliminar producto seleccionado
   void _eliminarProducto() {
     if (productoSeleccionado != null) {
+      if (productoSeleccionado!['enviado'] == true) {
+        _mostrarMensajeBloqueo();
+        return;
+      }
       setState(() {
         ordenes.remove(productoSeleccionado);
         productoSeleccionado = null;
@@ -1552,6 +1623,243 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  // Mostrar mensaje cuando se intenta modificar un producto enviado
+  void _mostrarMensajeBloqueo() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("⚠️ Acción no permitida"),
+          content: const Text(
+            "No se puede modificar un producto ya enviado a cocina",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Aceptar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Enviar comanda a cocina
+  void _enviarComanda() {
+    // Contar productos NO enviados
+    final productosNoEnviados = ordenes
+        .where((item) => item['enviado'] != true)
+        .toList();
+
+    if (productosNoEnviados.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Sin productos nuevos"),
+            content: const Text("No hay productos nuevos para enviar a cocina"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Aceptar"),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    // Mostrar diálogo de confirmación
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("📋 Confirmar envío de comanda"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Se enviarán ${productosNoEnviados.length} producto(s) a cocina:",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ...productosNoEnviados.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    "• ${item['cantidad']}x ${item['nombre']}",
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "⚠️ Una vez enviados, NO podrás modificar ni eliminar estos productos.",
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  // Marcar todos los productos NO enviados como enviados
+                  for (var item in ordenes) {
+                    if (item['enviado'] != true) {
+                      item['enviado'] = true;
+                    }
+                  }
+                  _guardarPedidos(); // Guardar cambios
+                });
+                Navigator.pop(context);
+
+                // Mostrar confirmación
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "✓ ${productosNoEnviados.length} producto(s) enviado(s) a cocina",
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Enviar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Procesar cuenta y limpiar mesa
+  void _procesarCuenta() {
+    // Si no hay productos, no hacer nada
+    if (ordenes.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Sin productos"),
+            content: const Text("No hay productos en esta mesa"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Aceptar"),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    // Mostrar diálogo de confirmación
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("💳 Procesar cuenta"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Mesa ${widget.numeroMesa}",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Total de productos: $totalItems",
+                style: const TextStyle(fontSize: 14),
+              ),
+              Text(
+                "Total a pagar: \$${totalGeneral.toStringAsFixed(2)}",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "⚠️ Esto liberará la mesa y eliminará todos los productos.",
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  // Limpiar toda la lista de productos
+                  ordenes.clear();
+                  productoSeleccionado = null;
+                  totalItems = 0;
+                  totalGeneral = 0.0;
+                  cantidadBuffer = 0;
+
+                  // Liberar la mesa
+                  mesaState.liberarMesa(widget.numeroMesa);
+
+                  // Guardar el estado vacío
+                  _guardarPedidos();
+                });
+
+                // Cerrar el diálogo
+                Navigator.pop(context);
+
+                // Mostrar confirmación
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("✓ Cuenta procesada y mesa liberada"),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+
+                // Regresar a la pantalla anterior después de un momento
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  Navigator.pop(context);
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Procesar"),
+            ),
+          ],
         );
       },
     );
