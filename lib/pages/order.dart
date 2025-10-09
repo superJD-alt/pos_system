@@ -987,7 +987,7 @@ class _OrderPageState extends State<OrderPage> {
                                   _botonAccion(
                                     Icons.swap_horiz,
                                     "TRANSFERIR",
-                                    () {},
+                                    _transferirMesa,
                                   ),
                                   _botonNumero(
                                     "1",
@@ -1776,7 +1776,8 @@ class _OrderPageState extends State<OrderPage> {
     // Mostrar diálogo de confirmación
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        // ← CAMBIO: Renombrar a dialogContext
         return AlertDialog(
           title: const Text("💳 Procesar cuenta"),
           content: Column(
@@ -1816,13 +1817,17 @@ class _OrderPageState extends State<OrderPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () =>
+                  Navigator.pop(dialogContext), // ← Usar dialogContext
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
               onPressed: () {
+                // Cerrar el diálogo PRIMERO
+                Navigator.pop(dialogContext); // ← Usar dialogContext
+
+                // Limpiar y liberar la mesa
                 setState(() {
-                  // Limpiar toda la lista de productos
                   ordenes.clear();
                   productoSeleccionado = null;
                   totalItems = 0;
@@ -1832,12 +1837,9 @@ class _OrderPageState extends State<OrderPage> {
                   // Liberar la mesa
                   mesaState.liberarMesa(widget.numeroMesa);
 
-                  // Guardar el estado vacío
-                  _guardarPedidos();
+                  // Guardar el estado vacío (opcional, ya que liberarMesa lo hace)
+                  // _guardarPedidos(); // No es necesario porque liberarMesa ya limpia
                 });
-
-                // Cerrar el diálogo
-                Navigator.pop(context);
 
                 // Mostrar confirmación
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1850,7 +1852,10 @@ class _OrderPageState extends State<OrderPage> {
 
                 // Regresar a la pantalla anterior después de un momento
                 Future.delayed(const Duration(milliseconds: 500), () {
-                  Navigator.pop(context);
+                  if (mounted) {
+                    // ← Verificar que el widget sigue montado
+                    Navigator.of(context).pop(); // ← Usar context del widget
+                  }
                 });
               },
               style: ElevatedButton.styleFrom(
@@ -1858,6 +1863,213 @@ class _OrderPageState extends State<OrderPage> {
                 foregroundColor: Colors.white,
               ),
               child: const Text("Procesar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Agregar este método en la clase _OrderPageState
+  void _transferirMesa() {
+    // Si no hay productos, no hacer nada
+    if (ordenes.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Sin productos"),
+            content: const Text("No hay productos para transferir"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Aceptar"),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    // Controlador para el número de mesa destino
+    TextEditingController mesaDestinoController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("🔄 Transferir mesa"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Mesa actual: ${widget.numeroMesa}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Productos a transferir: $totalItems",
+                  style: const TextStyle(fontSize: 14),
+                ),
+                Text(
+                  "Total: \$${totalGeneral.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: mesaDestinoController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "Número de mesa destino",
+                    hintText: "Ingresa el número de mesa",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "⚠️ Todos los productos se transferirán a la mesa destino.",
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Validar que se ingresó un número
+                int? mesaDestino = int.tryParse(mesaDestinoController.text);
+
+                if (mesaDestino == null) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("❌ Ingresa un número de mesa válido"),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+
+                // Validar que no sea la misma mesa
+                if (mesaDestino == widget.numeroMesa) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("❌ No puedes transferir a la misma mesa"),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+
+                // Obtener pedidos de la mesa destino
+                List<Map<String, dynamic>> pedidosDestino = List.from(
+                  mesaState.obtenerPedidos(mesaDestino),
+                );
+
+                // Agregar los productos de la mesa actual a la mesa destino
+                for (var producto in ordenes) {
+                  // Buscar si el producto ya existe en la mesa destino
+                  int index = pedidosDestino.indexWhere(
+                    (p) =>
+                        p['nombre'] == producto['nombre'] &&
+                        p['enviado'] == producto['enviado'] &&
+                        (p['nota'] ?? '') == (producto['nota'] ?? ''),
+                  );
+
+                  if (index >= 0) {
+                    // Si existe, sumar las cantidades
+                    pedidosDestino[index]['cantidad'] += producto['cantidad'];
+                    pedidosDestino[index]['total'] =
+                        pedidosDestino[index]['cantidad'] *
+                        pedidosDestino[index]['precio'];
+                  } else {
+                    // Si no existe, agregar como nuevo producto (copia profunda)
+                    pedidosDestino.add({
+                      'nombre': producto['nombre'],
+                      'precio': producto['precio'],
+                      'cantidad': producto['cantidad'],
+                      'total': producto['total'],
+                      'nota': producto['nota'] ?? '',
+                      'enviado': producto['enviado'] ?? false,
+                      'tiempo': producto['tiempo'] ?? 1,
+                      'imagen': producto['imagen'] ?? '',
+                    });
+                  }
+                }
+
+                // ORDEN CORRECTO DE OPERACIONES:
+
+                // 1. Ocupar la mesa destino PRIMERO (si no está ocupada)
+                if (!mesaState.estaMesaOcupada(mesaDestino)) {
+                  int comensales = mesaState.obtenerComensales(
+                    widget.numeroMesa,
+                  );
+                  if (comensales == 0) comensales = widget.comensales;
+                  mesaState.ocuparMesa(mesaDestino, comensales);
+                }
+
+                // 2. Guardar pedidos en la mesa destino
+                mesaState.guardarPedidos(mesaDestino, pedidosDestino);
+
+                // 3. Liberar la mesa origen (esto eliminará los pedidos automáticamente)
+                mesaState.liberarMesa(widget.numeroMesa);
+
+                // 4. Cerrar el diálogo
+                Navigator.pop(dialogContext);
+
+                // 5. Limpiar el estado local
+                setState(() {
+                  ordenes.clear();
+                  productoSeleccionado = null;
+                  totalItems = 0;
+                  totalGeneral = 0.0;
+                  cantidadBuffer = 0;
+                });
+
+                // 6. Mostrar confirmación
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "✓ Productos transferidos a mesa $mesaDestino",
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+
+                // 7. Regresar a la pantalla anterior CON UN DELAY MÁS LARGO
+                // Esto permite que notifyListeners() se propague
+                Future.delayed(const Duration(milliseconds: 800), () {
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                  }
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Transferir"),
             ),
           ],
         );

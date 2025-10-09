@@ -1,4 +1,3 @@
-// custom_table.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:pos_system/pages/order.dart';
