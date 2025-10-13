@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pos_system/pages/custom_table.dart';
+import 'package:pos_system/pages/panel_meseros.dart';
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -45,7 +45,7 @@ class _LoginPosState extends State<LoginPos> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const CustomTable()),
+        MaterialPageRoute(builder: (context) => const PanelMeseros()),
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
