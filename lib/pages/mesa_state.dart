@@ -22,6 +22,14 @@ class MesaState extends ChangeNotifier {
     return _mesasOcupadas[numeroMesa] ?? false;
   }
 
+  // Obtener todas las mesas actualmente ocupadas
+  List<int> obtenerMesasOcupadas() {
+    return _mesasOcupadas.entries
+        .where((entry) => entry.value == true)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
   void ocuparMesa(int numeroMesa, int comensales) {
     _mesasOcupadas[numeroMesa] = true;
     _comensalesPorMesa[numeroMesa] = comensales;

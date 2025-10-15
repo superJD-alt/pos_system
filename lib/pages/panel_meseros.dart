@@ -127,7 +127,8 @@ class _PanelMeserosState extends State<PanelMeseros> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const PedidosActivos(),
+                                  builder: (context) =>
+                                      const PedidosActivosPage(),
                                 ),
                               );
                             },
