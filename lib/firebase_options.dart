@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'systempos-86ada.firebasestorage.app',
     measurementId: 'G-9THE8X24C9',
   );
+
 }

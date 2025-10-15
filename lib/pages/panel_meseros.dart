@@ -1,9 +1,52 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/pedidos_activos.dart';
+import 'package:pos_system/pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
 
-class PanelMeseros extends StatelessWidget {
+class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
+
+  @override
+  State<PanelMeseros> createState() => _PanelMeserosState();
+}
+
+class _PanelMeserosState extends State<PanelMeseros> {
+  String nombreMesero = 'Cargando...';
+
+  @override
+  void initState() {
+    super.initState();
+    testFirestore(); // Llama aquí la función de prueba
+    obtenerNombreMesero();
+  }
+
+  // 🔹 Función para obtener el nombre del mesero desde Firestoreq
+  Future<void> obtenerNombreMesero() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        setState(() {
+          nombreMesero = doc['nombre'] ?? 'Mesero';
+        });
+      } else {
+        setState(() {
+          nombreMesero = user.displayName ?? 'Mesero';
+        });
+      }
+    } else {
+      setState(() {
+        nombreMesero = 'Invitado';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,22 +61,26 @@ class PanelMeseros extends StatelessWidget {
           // Contenido principal
           SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.only(top: 40.0), // Espacio desde el top
+              padding: const EdgeInsets.only(top: 40.0),
               child: Column(
                 children: [
-                  // 🔹 Aquí puedes agregar tu label de bienvenida
-                  const Text(
-                    'Hola, [Nombre Usuario]',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  // 🔹 Mostrar el nombre real del mesero
+                  Text(
+                    'Hola, $nombreMesero 👋',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
-                  const SizedBox(height: 40), // Espacio entre label y botones
+                  const SizedBox(height: 40),
+
                   // 🔹 Fila con los tres botones principales
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 🔹 Botón 1
+                      // 🔹 Botón 1 - Nuevo pedido
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -71,7 +118,7 @@ class PanelMeseros extends StatelessWidget {
                         ],
                       ),
 
-                      // 🔹 Botón 2
+                      // 🔹 Botón 2 - Pedidos activos
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -109,7 +156,7 @@ class PanelMeseros extends StatelessWidget {
                         ],
                       ),
 
-                      // 🔹 Botón 3
+                      // 🔹 Botón 3 - Mesas
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -176,19 +223,23 @@ class PanelMeseros extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 80), // Espacio extra al final
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
           ),
 
-          // 🔹 Botón "Cerrar sesión" flotante en esquina inferior derecha
+          // 🔹 Botón "Cerrar sesión"
           Positioned(
             bottom: 32,
             right: 32,
             child: ElevatedButton(
-              onPressed: () {
-                debugPrint('Cerrar sesión presionado');
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPos()),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
@@ -210,5 +261,27 @@ class PanelMeseros extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void testFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final doc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
+
+        if (doc.exists) {
+          print('Documento encontrado: ${doc.data()}');
+        } else {
+          print('Documento NO encontrado. Revisa el UID.');
+        }
+      } else {
+        print('No hay usuario logueado.');
+      }
+    } catch (e) {
+      print('Error al conectar con Firestore: $e');
+    }
   }
 }
