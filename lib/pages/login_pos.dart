@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pos_system/pages/panel_meseros.dart';
+import 'package:pos_system/screens/main_screen.dart';
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -45,7 +46,10 @@ class _LoginPosState extends State<LoginPos> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const PanelMeseros()),
+        MaterialPageRoute(
+          //builder: (context) => const PanelMeseros(),
+          builder: (context) => const MainScreen(),
+        ), //cambiamos ruta dependiendo de quien inicie sesion
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
