@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:pos_system/widgets/side_menu_widget.dart';
+import 'package:pos_system/widgets/dashboard_widget.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
@@ -13,7 +14,7 @@ class MainScreen extends StatelessWidget {
         child: Row(
           children: [
             Expanded(flex: 2, child: SizedBox(child: SideMenuWidget())),
-            Expanded(flex: 7, child: Container(color: Colors.blue)),
+            Expanded(flex: 7, child: DashboardWidget()),
             Expanded(flex: 3, child: Container(color: Colors.green)),
           ],
         ),
