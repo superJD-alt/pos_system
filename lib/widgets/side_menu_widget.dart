@@ -47,6 +47,7 @@ class _SideMenuWidgetState extends State<SideMenuWidget> {
                 color: isSelected ? Colors.black : Colors.grey,
               ),
             ),
+
             Text(
               data.menu[index].title,
               style: TextStyle(
