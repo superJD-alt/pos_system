@@ -1,1 +1,41 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"systempos-86ada","appId":"1:894508282649:android:e54c774834627ff65d0b88","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"systempos-86ada","appId":"1:894508282649:ios:37be7d2809ac83175d0b88","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"systempos-86ada","appId":"1:894508282649:ios:37be7d2809ac83175d0b88","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"systempos-86ada","configurations":{"android":"1:894508282649:android:e54c774834627ff65d0b88","ios":"1:894508282649:ios:37be7d2809ac83175d0b88","macos":"1:894508282649:ios:37be7d2809ac83175d0b88","web":"1:894508282649:web:bdf2dd3b19e0fdc15d0b88","windows":"1:894508282649:web:390180ecaec3bd825d0b88"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "systempos-86ada",
+          "appId": "1:894508282649:android:e54c774834627ff65d0b88",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "systempos-86ada",
+          "appId": "1:894508282649:ios:37be7d2809ac83175d0b88",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "systempos-86ada",
+          "appId": "1:894508282649:ios:37be7d2809ac83175d0b88",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "systempos-86ada",
+          "configurations": {
+            "android": "1:894508282649:android:e54c774834627ff65d0b88",
+            "ios": "1:894508282649:ios:37be7d2809ac83175d0b88",
+            "macos": "1:894508282649:ios:37be7d2809ac83175d0b88",
+            "web": "1:894508282649:web:bdf2dd3b19e0fdc15d0b88",
+            "windows": "1:894508282649:web:390180ecaec3bd825d0b88"
+          }
+        }
+      }
+    }
+  }
+}

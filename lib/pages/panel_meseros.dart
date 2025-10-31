@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/pedidos_activos.dart';
 import 'package:pos_system/pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
@@ -202,7 +203,7 @@ class _PanelMeserosState extends State<PanelMeseros> {
                   // 🔹 Botón Resumen del turno
                   ElevatedButton(
                     onPressed: () {
-                      debugPrint('Botón inferior presionado');
+                      // Acción al presionar el botón
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
@@ -264,6 +265,7 @@ class _PanelMeserosState extends State<PanelMeseros> {
     );
   }
 
+  //
   void testFirestore() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -285,4 +287,23 @@ class _PanelMeserosState extends State<PanelMeseros> {
       print('Error al conectar con Firestore: $e');
     }
   }
+  /*
+  () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('⏳ Importando menú...')),
+                      );
+
+                      try {
+                        await importarMenuAFirebase();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Menú importado correctamente'),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('❌ Error al importar: $e')),
+                        );
+                      }
+   */
 }

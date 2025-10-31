@@ -47,8 +47,8 @@ class _LoginPosState extends State<LoginPos> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          //builder: (context) => const PanelMeseros(),
-          builder: (context) => const MainScreen(),
+          builder: (context) => const PanelMeseros(),
+          //builder: (context) => const MainScreen(),
         ), //cambiamos ruta dependiendo de quien inicie sesion
       );
     } on FirebaseAuthException catch (e) {
