@@ -12,11 +12,31 @@ class MesaState extends ChangeNotifier {
   // Mapa para almacenar el estado de cada mesa
   final Map<int, bool> _mesasOcupadas = {};
 
+  // ✅ NUEVO: Mapa separado para pedidos ENVIADOS a cocina
+  final Map<int, List<Map<String, dynamic>>> _pedidosEnviadosPorMesa = {};
+
+  // Obtener pedidos ENVIADOS de una mesa (los que tienen mesero y fecha)
+  List<Map<String, dynamic>> obtenerPedidosEnviados(int numeroMesa) {
+    return _pedidosEnviadosPorMesa[numeroMesa] ?? [];
+  }
+
   // Mapa para almacenar los pedidos de cada mesa
   final Map<int, List<Map<String, dynamic>>> _pedidosPorMesa = {};
 
   // Mapa para almacenar el número de comensales por mesa
   final Map<int, int> _comensalesPorMesa = {};
+
+  // ✅ NUEVO: Variable para guardar el nombre del mesero actual
+  String _meseroActual = "";
+
+  // ✅ NUEVO: Getter para obtener el mesero actual
+  String get meseroActual => _meseroActual;
+
+  // ✅ NUEVO: Método para establecer el mesero después del login
+  void establecerMesero(String nombreMesero) {
+    _meseroActual = nombreMesero;
+    notifyListeners();
+  }
 
   bool estaMesaOcupada(int numeroMesa) {
     return _mesasOcupadas[numeroMesa] ?? false;
@@ -43,6 +63,7 @@ class MesaState extends ChangeNotifier {
   void liberarMesa(int numeroMesa) {
     _mesasOcupadas[numeroMesa] = false;
     _pedidosPorMesa.remove(numeroMesa);
+    _pedidosEnviadosPorMesa.remove(numeroMesa); // ✅ También limpiar enviados
     _comensalesPorMesa.remove(numeroMesa);
     notifyListeners();
   }
@@ -52,9 +73,29 @@ class MesaState extends ChangeNotifier {
     return _pedidosPorMesa[numeroMesa] ?? [];
   }
 
-  // Guardar pedidos de una mesa
+  // ✅ MODIFICADO: Guardar pedidos de una mesa CON el mesero
   void guardarPedidos(int numeroMesa, List<Map<String, dynamic>> pedidos) {
     _pedidosPorMesa[numeroMesa] = List.from(pedidos);
+    notifyListeners();
+  }
+
+  // ✅ NUEVO: Método para agregar un pedido con toda la info
+  void agregarPedido(int numeroMesa, List<Map<String, dynamic>> alimentos) {
+    if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) {
+      _pedidosEnviadosPorMesa[numeroMesa] = [];
+    }
+
+    final pedido = {
+      "mesero": _meseroActual,
+      "fecha": DateTime.now().toIso8601String(),
+      "alimentos": alimentos,
+    };
+
+    _pedidosEnviadosPorMesa[numeroMesa]!.add(pedido);
+
+    // ✅ Limpiar pedidos locales después de enviar
+    _pedidosPorMesa[numeroMesa] = [];
+
     notifyListeners();
   }
 
@@ -67,7 +108,9 @@ class MesaState extends ChangeNotifier {
   void limpiarTodo() {
     _mesasOcupadas.clear();
     _pedidosPorMesa.clear();
+    _pedidosEnviadosPorMesa.clear(); // ✅ Limpiar también los pedidos enviados
     _comensalesPorMesa.clear();
+    _meseroActual = ""; // ✅ Limpiar también el mesero
     notifyListeners();
   }
 }

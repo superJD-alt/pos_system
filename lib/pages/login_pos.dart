@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Agregar esto
 import 'package:pos_system/pages/panel_meseros.dart';
-import 'package:pos_system/screens/main_screen.dart';
+import 'package:pos_system/pages/mesa_state.dart'; // ✅ Importar MesaState
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -14,6 +15,8 @@ class _LoginPosState extends State<LoginPos> {
   final TextEditingController userController = TextEditingController();
   final TextEditingController passController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance; // ✅ Agregar
+  final MesaState _mesaState = MesaState(); // ✅ Agregar
 
   String? errorMessage;
   bool loading = false;
@@ -32,8 +35,7 @@ class _LoginPosState extends State<LoginPos> {
       return;
     }
 
-    final email =
-        '$user@pos.com'; // 👉 convertimos el usuario numérico en email válido
+    final email = '$user@pos.com';
 
     try {
       setState(() {
@@ -41,15 +43,45 @@ class _LoginPosState extends State<LoginPos> {
         loading = true;
       });
 
-      await _auth.signInWithEmailAndPassword(email: email, password: pass);
+      // Autenticar usuario
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: pass,
+      );
+
+      // ✅ NUEVO: Obtener el nombre del mesero desde Firestore
+      String nombreMesero = "Mesero"; // Valor por defecto
+
+      try {
+        DocumentSnapshot userDoc = await _firestore
+            .collection('usuarios')
+            .doc(userCredential.user!.uid)
+            .get();
+
+        if (userDoc.exists) {
+          nombreMesero =
+              userDoc.get('nombre') ??
+              userDoc.get('displayName') ??
+              "Mesero #$user";
+        } else {
+          // Si no existe en Firestore, usar el usuario numérico
+          nombreMesero = "Mesero #$user";
+        }
+      } catch (e) {
+        // Si hay error al buscar en Firestore, usar valor por defecto
+        nombreMesero = "Mesero #$user";
+        print('Error al obtener nombre del mesero: $e');
+      }
+
+      // ✅ GUARDAR el nombre del mesero en MesaState
+      _mesaState.establecerMesero(nombreMesero);
+
+      print('✅ Mesero establecido: $nombreMesero'); // Para debug
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const PanelMeseros(),
-          //builder: (context) => const MainScreen(),
-        ), //cambiamos ruta dependiendo de quien inicie sesion
+        MaterialPageRoute(builder: (context) => const PanelMeseros()),
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {

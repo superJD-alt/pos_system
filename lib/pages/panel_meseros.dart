@@ -167,7 +167,7 @@ class _PanelMeserosState extends State<PanelMeseros> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const CustomTable(),
+                                  builder: (context) => const CustomTable(), //
                                 ),
                               );
                             },
@@ -287,6 +287,7 @@ class _PanelMeserosState extends State<PanelMeseros> {
       print('Error al conectar con Firestore: $e');
     }
   }
+
   /*
   () async {
                       ScaffoldMessenger.of(context).showSnackBar(

@@ -28,7 +28,7 @@ class _PedidosActivosPageState extends State<PedidosActivosPage> {
               itemCount: mesasOcupadas.length,
               itemBuilder: (context, index) {
                 final numeroMesa = mesasOcupadas[index];
-                final pedidos = mesaState.obtenerPedidos(numeroMesa);
+                final pedidos = mesaState.obtenerPedidosEnviados(numeroMesa);
                 final comensales = mesaState.obtenerComensales(numeroMesa);
 
                 if (pedidos.isEmpty) {
