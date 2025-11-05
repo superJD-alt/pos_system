@@ -4,7 +4,8 @@ class Producto {
   final double precio;
   final String categoria;
   final bool disponible;
-  final int? gramos; // Opcional
+  final int? gramos;
+  final String? tipo;
 
   Producto({
     required this.id,
@@ -13,6 +14,7 @@ class Producto {
     required this.categoria,
     required this.disponible,
     this.gramos,
+    this.tipo,
   });
 
   // Crear desde Firestore
@@ -24,6 +26,7 @@ class Producto {
       categoria: data['categoria'] ?? '',
       disponible: data['disponible'] ?? true,
       gramos: data['gramos'],
+      tipo: data['tipo'],
     );
   }
 

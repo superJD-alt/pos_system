@@ -3,6 +3,9 @@ import 'package:pos_system/models/pedido.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pos_system/models/producto.dart';
 import 'package:pos_system/pages/mesa_state.dart';
+import 'package:uuid/uuid.dart';
+import 'package:pos_system/pages/turno_state.dart';
+import 'package:pos_system/models/cuenta_cerrada.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -25,6 +28,10 @@ class _OrderPageState extends State<OrderPage> {
       FirebaseFirestore.instance; //instancia para Firestore
 
   String categoriaSeleccionada = "Todos"; // valor inicial
+  String? subcategoriaSeleccionada; // ← NUEVO: Para bebidas
+  bool mostrandoSubcategorias =
+      false; // ← NUEVO: Para mostrar/ocultar subcategorías
+
   int cantidadBuffer = 0; //contador para botones
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
@@ -50,37 +57,90 @@ class _OrderPageState extends State<OrderPage> {
     _cargarProductosDesdeFirestore(); //cargar productos de la base de datos
   }
 
-  // ✅ NUEVO: Cargar productos desde Firestore
+  // ✅ NUEVO: Cargar productos con tipo (platillo/bebida)
   Future<void> _cargarProductosDesdeFirestore() async {
     try {
       setState(() => cargandoProductos = true);
 
-      // Obtener todos los productos
-      QuerySnapshot snapshot = await _firestore
-          .collection('platillos') //nombre de tu colección
-          .where('disponible', isEqualTo: true) // solo productos disponibles
-          .orderBy('categoria')
-          .orderBy('nombre')
+      List<Producto> productos = [];
+
+      // 1️⃣ Cargar PLATILLOS
+      print('🔍 Cargando platillos...');
+      QuerySnapshot snapshotPlatillos = await _firestore
+          .collection('platillos')
+          .where('disponible', isEqualTo: true)
           .get();
 
-      List<Producto> productos = snapshot.docs.map((doc) {
-        return Producto.fromFirestore(
-          doc.id,
-          doc.data() as Map<String, dynamic>,
-        );
+      List<Producto> platillos = snapshotPlatillos.docs.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+
+        // Convertir precio si es String
+        if (data['precio'] is String) {
+          data['precio'] = double.tryParse(data['precio']) ?? 0.0;
+        }
+
+        // Asegurar que tenga el campo 'tipo'
+        data['tipo'] = 'platillo';
+
+        return Producto.fromFirestore(doc.id, data);
       }).toList();
 
-      // Extraer categorías únicas
-      Set<String> categoriasSet = productos.map((p) => p.categoria).toSet();
-      List<String> listaCategorias = categoriasSet.toList()..sort();
+      print('✅ Platillos cargados: ${platillos.length}');
+
+      // 2️⃣ Cargar BEBIDAS
+      print('🔍 Cargando bebidas...');
+      QuerySnapshot snapshotBebidas = await _firestore
+          .collection('bebidas')
+          .where('disponible', isEqualTo: true)
+          .get();
+
+      List<Producto> bebidas = snapshotBebidas.docs.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+
+        // Convertir precio si es String
+        if (data['precio'] is String) {
+          data['precio'] = double.tryParse(data['precio']) ?? 0.0;
+        }
+
+        // Asegurar que tenga el campo 'tipo'
+        data['tipo'] = 'bebida';
+
+        return Producto.fromFirestore(doc.id, data);
+      }).toList();
+
+      print('✅ Bebidas cargadas: ${bebidas.length}');
+
+      // 3️⃣ Combinar
+      productos = [...platillos, ...bebidas];
+
+      // 4️⃣ Ordenar
+      productos.sort((a, b) {
+        // Primero por tipo (platillos antes que bebidas)
+        int tipoComparison = (a.tipo ?? 'platillo').compareTo(
+          b.tipo ?? 'platillo',
+        );
+        if (tipoComparison != 0) return tipoComparison;
+
+        // Luego por categoría
+        int categoriaComparison = a.categoria.compareTo(b.categoria);
+        if (categoriaComparison != 0) return categoriaComparison;
+
+        // Finalmente por nombre
+        return a.nombre.compareTo(b.nombre);
+      });
+
+      // 5️⃣ Crear categorías jerárquicas
+      List<String> listaCategorias = _crearCategoriasJerarquicas(productos);
 
       setState(() {
         todosLosProductos = productos;
-        categorias = ['Todos', ...listaCategorias]; // Agregar "Todos" al inicio
+        categorias = listaCategorias;
         cargandoProductos = false;
       });
+
+      print('📂 Categorías: $listaCategorias');
     } catch (e) {
-      print('Error al cargar productos: $e');
+      print('❌ Error: $e');
       setState(() => cargandoProductos = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,11 +152,46 @@ class _OrderPageState extends State<OrderPage> {
     }
   }
 
-  // ✅ Filtrar productos por categoría
+  /// ✅ MODIFICADO: Crear categorías sin separador de bebidas
+  List<String> _crearCategoriasJerarquicas(List<Producto> productos) {
+    List<String> resultado = ['Todos'];
+
+    // Obtener categorías de platillos (sin incluir bebidas)
+    Set<String> categoriasPlatillos = productos
+        .where((p) => p.tipo == 'platillo')
+        .map((p) => p.categoria)
+        .toSet();
+
+    resultado.addAll(categoriasPlatillos.toList()..sort());
+
+    // Agregar solo el botón "Bebidas" (sin subcategorías aquí)
+    resultado.add('Bebidas');
+
+    return resultado;
+  }
+
+  // Modifica el método productosFiltrados
   List<Producto> get productosFiltrados {
     if (categoriaSeleccionada == "Todos") {
-      return todosLosProductos;
+      return todosLosProductos.where((p) => p.tipo == 'platillo').toList();
     }
+
+    if (categoriaSeleccionada == "Bebidas") {
+      // ✅ NUEVO: Retornar TODAS las bebidas ordenadas por categoría
+      List<Producto> bebidas = todosLosProductos
+          .where((p) => p.tipo == 'bebida')
+          .toList();
+
+      // Ordenar por categoría y luego por nombre
+      bebidas.sort((a, b) {
+        int catComparison = a.categoria.compareTo(b.categoria);
+        if (catComparison != 0) return catComparison;
+        return a.nombre.compareTo(b.nombre);
+      });
+
+      return bebidas;
+    }
+
     return todosLosProductos
         .where((p) => p.categoria == categoriaSeleccionada)
         .toList();
@@ -296,7 +391,7 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // ✅ NUEVO: Grid de productos mejorado SIN imágenes
+  // ✅ NUEVO: Modifica _buildProductosGrid para mostrar divisores en bebidas
   Widget _buildProductosGrid() {
     final productos = productosFiltrados;
 
@@ -309,11 +404,17 @@ class _OrderPageState extends State<OrderPage> {
       );
     }
 
+    // ✅ Si estamos en bebidas, usar un ListView con divisores
+    if (categoriaSeleccionada == "Bebidas") {
+      return _buildBebidasConDivisores(productos);
+    }
+
+    // Para otras categorías, usar el grid normal
     return GridView.builder(
       itemCount: productos.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 0.85, // Ajustado para mejor proporción
+        childAspectRatio: 0.85,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
       ),
@@ -324,131 +425,348 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // ✅ NUEVO: Card de producto bonita sin imagen
+  // ✅ MEJORADO: Card de producto con mejor diseño
   Widget _buildProductoCard(Producto producto) {
-    // Colores por categoría para hacer más visual
+    // Colores más vibrantes y modernos por categoría
     Color getCategoryColor(String categoria) {
       switch (categoria.toLowerCase()) {
         case 'entradas':
-          return Colors.orange.shade300;
+          return const Color(0xFFFF6B6B); // Rojo coral
         case 'ensaladas':
-          return Colors.green.shade300;
+          return const Color(0xFF51CF66); // Verde fresco
         case 'sopas':
-          return Colors.amber.shade300;
+          return const Color(0xFFFFD93D); // Amarillo brillante
         case 'quesos':
-          return Colors.yellow.shade300;
+          return const Color(0xFFFFA94D); // Naranja queso
         case 'papas':
-          return Colors.brown.shade300;
+          return const Color(0xFFD4A574); // Café dorado
         case 'costillas':
-          return Colors.red.shade300;
+          return const Color(0xFFE03131); // Rojo carne
         case 'molcajetes':
-          return Colors.deepOrange.shade300;
+          return const Color(0xFFFF8787); // Rojo salmón
         case 'cortes':
-          return Colors.red.shade400;
+          return const Color(0xFFC92A2A); // Rojo oscuro
         case 'tacos':
-          return Colors.lime.shade300;
+          return const Color(0xFF94D82D); // Verde lima
         case 'volcanes':
-          return Colors.deepOrange.shade400;
+          return const Color(0xFFFF6B35); // Naranja fuego
         case 'bebidas':
-          return Colors.blue.shade300;
+        case 'cocteleria':
+        case 'cerveza':
+        case 'tequila':
+        case 'whisky':
+        case 'brandy':
+        case 'mezcales':
+        case 'vinos':
+        case 'sin alcohol':
+          return const Color(0xFF4DABF7); // Azul agua
         case 'postres':
-          return Colors.pink.shade300;
+          return const Color(0xFFFF69B4); // Rosa postre
         default:
-          return Colors.grey.shade300;
+          return const Color(0xFF868E96); // Gris neutro
       }
     }
 
     final categoryColor = getCategoryColor(producto.categoria);
 
-    return ElevatedButton(
-      onPressed: () => _agregarProductoDesdeFirestore(producto),
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.all(Colors.white),
-        foregroundColor: WidgetStateProperty.all(Colors.black),
-        shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: categoryColor, width: 2),
-          ),
-        ),
-        padding: WidgetStateProperty.all(const EdgeInsets.all(12)),
-        elevation: WidgetStateProperty.all(3),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // ✅ Icono decorativo en lugar de imagen
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: categoryColor.withOpacity(0.3),
-              shape: BoxShape.circle,
-              border: Border.all(color: categoryColor, width: 2),
-            ),
-            child: Icon(
-              _getIconForCategory(producto.categoria),
-              size: 40,
-              color: categoryColor.withOpacity(0.8),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Nombre del producto
-          Text(
-            producto.nombre,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-              height: 1.2,
-            ),
-          ),
-
-          const Spacer(),
-
-          // Gramos (si aplica)
-          if (producto.gramos != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '${producto.gramos}g',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-          ],
-
-          // Precio
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade300),
-            ),
-            child: Text(
-              "\$${producto.precio.toStringAsFixed(2)}",
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.green.shade700,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: categoryColor.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      child: ElevatedButton(
+        onPressed: () => _agregarProductoDesdeFirestore(producto),
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return categoryColor.withOpacity(0.9);
+            }
+            return Colors.white;
+          }),
+          foregroundColor: WidgetStateProperty.all(Colors.black87),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: categoryColor, width: 3),
+            ),
+          ),
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          ),
+          elevation: WidgetStateProperty.resolveWith<double>((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return 2;
+            }
+            return 6;
+          }),
+          overlayColor: WidgetStateProperty.all(categoryColor.withOpacity(0.1)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // ✅ Icono con animación de gradiente
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    categoryColor.withOpacity(0.2),
+                    categoryColor.withOpacity(0.4),
+                  ],
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(color: categoryColor, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: categoryColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Icon(
+                _getIconForCategory(producto.categoria),
+                size: 45,
+                color: categoryColor,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Nombre del producto
+            Expanded(
+              child: Center(
+                child: Text(
+                  producto.nombre,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    height: 1.2,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // Gramos (si aplica)
+            if (producto.gramos != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: categoryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: categoryColor.withOpacity(0.4),
+                    width: 1.5,
+                  ),
+                ),
+                child: Text(
+                  '${producto.gramos}g',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: categoryColor.withOpacity(0.9),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Precio con diseño premium
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2ECC71).withOpacity(0.4),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                "\$${producto.precio.toStringAsFixed(2)}",
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ MEJORADO: Divisores de bebidas más atractivos
+  Widget _buildBebidasConDivisores(List<Producto> bebidas) {
+    Map<String, List<Producto>> bebidasPorCategoria = {};
+    for (var bebida in bebidas) {
+      if (!bebidasPorCategoria.containsKey(bebida.categoria)) {
+        bebidasPorCategoria[bebida.categoria] = [];
+      }
+      bebidasPorCategoria[bebida.categoria]!.add(bebida);
+    }
+
+    // Colores específicos para cada categoría de bebida
+    Color getBebidasCategoryColor(String categoria) {
+      switch (categoria.toLowerCase()) {
+        case 'cocteleria':
+          return const Color(0xFFFF6B9D); // Rosa cocktail
+        case 'cerveza':
+          return const Color(0xFFFFA94D); // Dorado cerveza
+        case 'tequila':
+          return const Color(0xFF51CF66); // Verde agave
+        case 'whisky':
+          return const Color(0xFFD4A574); // Café whisky
+        case 'brandy':
+          return const Color(0xFFB8860B); // Dorado oscuro
+        case 'mezcales':
+          return const Color(0xFF8B4513); // Café ahumado
+        case 'vinos':
+          return const Color(0xFF8E44AD); // Púrpura vino
+        case 'sin alcohol':
+          return const Color(0xFF4ECDC4); // Turquesa
+        default:
+          return const Color(0xFF4DABF7);
+      }
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: bebidasPorCategoria.length,
+      itemBuilder: (context, index) {
+        String categoria = bebidasPorCategoria.keys.elementAt(index);
+        List<Producto> productosCategoria = bebidasPorCategoria[categoria]!;
+        Color categoryColor = getBebidasCategoryColor(categoria);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ✅ Divisor visual mejorado
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              margin: const EdgeInsets.only(bottom: 12, left: 8, right: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [categoryColor.withOpacity(0.9), categoryColor],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: categoryColor.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getIconForCategory(categoria),
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          categoria.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        Text(
+                          '${productosCategoria.length} producto${productosCategoria.length != 1 ? 's' : ''}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${productosCategoria.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Grid de productos
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: productosCategoria.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 0.85,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                ),
+                itemBuilder: (context, productIndex) {
+                  return _buildProductoCard(productosCategoria[productIndex]);
+                },
+              ),
+            ),
+
+            const SizedBox(height: 24), // Espacio entre categorías
+          ],
+        );
+      },
     );
   }
 
@@ -654,7 +972,7 @@ class _OrderPageState extends State<OrderPage> {
 
         // ===== BOTONES POS =====
         Container(
-          height: 300,
+          height: 450,
           padding: EdgeInsets.zero,
           margin: EdgeInsets.zero,
           decoration: BoxDecoration(
@@ -668,7 +986,7 @@ class _OrderPageState extends State<OrderPage> {
               crossAxisCount: 4,
               mainAxisSpacing: 9,
               crossAxisSpacing: 8,
-              childAspectRatio: 3,
+              childAspectRatio: 2.2,
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _botonAccion(Icons.local_offer, "NOTA", _agregarNota),
@@ -731,21 +1049,57 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  // ✅ CORREGIDO: Botones de acción sin overflow
   Widget _botonAccion(IconData icono, String texto, VoidCallback onPressed) {
     return ElevatedButton(
       onPressed: onPressed,
-      style: _botonEstilo(),
+      style: ButtonStyle(
+        minimumSize: WidgetStateProperty.all(const Size(90, 30)),
+        backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return Colors.blue.shade700;
+          }
+          return Colors.white;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return Colors.white;
+          }
+          return Colors.black87;
+        }),
+        elevation: WidgetStateProperty.resolveWith<double>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return 1;
+          }
+          return 3;
+        }),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+          ),
+        ),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        ), // ✅ Padding reducido
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min, // ✅ Importante: usar min
         children: [
-          Icon(icono, size: 20),
+          Icon(icono, size: 20), // ✅ Icono ligeramente más pequeño
           if (texto.isNotEmpty)
-            FittedBox(
+            const SizedBox(height: 2), // ✅ Espaciado reducido
+          if (texto.isNotEmpty)
+            Flexible(
+              // ✅ Usar Flexible en lugar de FittedBox
               child: Text(
                 texto,
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 15, // ✅ Fuente ligeramente más pequeña
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -755,45 +1109,65 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  // ✅ MEJORADO: Botón de categoría con mejor diseño
   Widget _categoriaBoton(String nombre, {IconData? icono}) {
     final bool seleccionado = categoriaSeleccionada == nombre;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
       child: GestureDetector(
         onTap: () {
           setState(() {
             categoriaSeleccionada = nombre;
+            mostrandoSubcategorias = false;
+            subcategoriaSeleccionada = null;
           });
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: seleccionado ? Colors.white : Colors.grey[300],
-            borderRadius: BorderRadius.circular(8),
+            gradient: seleccionado
+                ? LinearGradient(
+                    colors: [Colors.blue.shade600, Colors.blue.shade400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: seleccionado ? null : Colors.white,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: seleccionado ? Colors.blue : Colors.transparent,
-              width: 2,
+              color: seleccionado ? Colors.blue.shade700 : Colors.grey.shade300,
+              width: seleccionado ? 2.5 : 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: seleccionado
+                    ? Colors.blue.withOpacity(0.4)
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: seleccionado ? 10 : 4,
+                offset: Offset(0, seleccionado ? 4 : 2),
+              ),
+            ],
           ),
-          alignment: Alignment.center,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icono != null) ...[
                 Icon(
                   icono,
-                  size: 20,
-                  color: seleccionado ? Colors.black : Colors.grey[700],
+                  size: 22,
+                  color: seleccionado ? Colors.white : Colors.grey[700],
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 8),
               ],
               Text(
                 nombre,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: seleccionado ? Colors.black : Colors.grey[700],
+                  fontSize: 15,
+                  color: seleccionado ? Colors.white : Colors.grey[800],
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -803,6 +1177,7 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  // ✅ MEJORADO: Botones numéricos
   Widget _botonNumero(String texto, {VoidCallback? onPressed}) {
     return ElevatedButton(
       onPressed:
@@ -822,10 +1197,36 @@ class _OrderPageState extends State<OrderPage> {
               }
             });
           },
-      style: _botonEstilo(),
+      style: ButtonStyle(
+        minimumSize: WidgetStateProperty.all(const Size(90, 30)),
+        backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return Colors.green.shade600;
+          }
+          return Colors.white;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return Colors.white;
+          }
+          return Colors.black87;
+        }),
+        elevation: WidgetStateProperty.resolveWith<double>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return 1;
+          }
+          return 4;
+        }),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.green.shade300, width: 2),
+          ),
+        ),
+      ),
       child: Text(
         texto,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -1148,7 +1549,6 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // Procesar cuenta y limpiar mesa
   void _procesarCuenta() {
     // Si no hay productos, no hacer nada
     if (ordenes.isEmpty) {
@@ -1174,7 +1574,6 @@ class _OrderPageState extends State<OrderPage> {
     showDialog(
       context: context,
       builder: (dialogContext) {
-        // ← CAMBIO: Renombrar a dialogContext
         return AlertDialog(
           title: const Text("💳 Procesar cuenta"),
           content: Column(
@@ -1203,9 +1602,9 @@ class _OrderPageState extends State<OrderPage> {
               ),
               const SizedBox(height: 12),
               const Text(
-                "⚠️ Esto liberará la mesa y eliminará todos los productos.",
+                "⚠️ Esto liberará la mesa y guardará la cuenta en el resumen del turno.",
                 style: TextStyle(
-                  color: Colors.red,
+                  color: Colors.blue,
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
@@ -1214,14 +1613,73 @@ class _OrderPageState extends State<OrderPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext), // ← Usar dialogContext
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
               onPressed: () {
                 // Cerrar el diálogo PRIMERO
-                Navigator.pop(dialogContext); // ← Usar dialogContext
+                Navigator.pop(dialogContext);
+
+                // ✅ NUEVO: Obtener información de la mesa antes de limpiar
+                final turnoState = TurnoState();
+
+                // Obtener pedidos enviados para calcular fecha de apertura
+                final pedidosEnviados = mesaState.obtenerPedidosEnviados(
+                  widget.numeroMesa,
+                );
+                DateTime fechaApertura = DateTime.now();
+
+                if (pedidosEnviados.isNotEmpty) {
+                  final primerPedido = pedidosEnviados.first;
+                  fechaApertura =
+                      DateTime.tryParse(primerPedido['fecha'] ?? '') ??
+                      DateTime.now();
+                }
+
+                // ✅ NUEVO: Consolidar todos los productos de la cuenta
+                List<Map<String, dynamic>> productosConsolidados = [];
+
+                // Agregar productos enviados
+                for (var pedido in pedidosEnviados) {
+                  final alimentos = pedido['alimentos'] ?? [];
+                  for (var alimento in alimentos) {
+                    productosConsolidados.add({
+                      'nombre': alimento['nombre'],
+                      'cantidad': alimento['cantidad'],
+                      'precio': alimento['precio'],
+                      'nota': alimento['nota'] ?? '',
+                    });
+                  }
+                }
+
+                // Agregar productos locales no enviados (si existen)
+                for (var orden in ordenes) {
+                  if (orden['enviado'] != true) {
+                    productosConsolidados.add({
+                      'nombre': orden['nombre'],
+                      'cantidad': orden['cantidad'],
+                      'precio': orden['precio'],
+                      'nota': orden['nota'] ?? '',
+                    });
+                  }
+                }
+
+                // ✅ NUEVO: Crear la cuenta cerrada
+                final cuentaCerrada = CuentaCerrada(
+                  id: const Uuid().v4(),
+                  numeroMesa: widget.numeroMesa,
+                  mesero: mesaState.meseroActual,
+                  comensales: widget.comensales,
+                  fechaApertura: fechaApertura,
+                  fechaCierre: DateTime.now(),
+                  productos: productosConsolidados,
+                  totalItems: totalItems,
+                  totalCuenta: totalGeneral,
+                );
+
+                // ✅ NUEVO: Guardar la cuenta en el turno
+                turnoState.agregarCuentaCerrada(cuentaCerrada);
 
                 // Limpiar y liberar la mesa
                 setState(() {
@@ -1233,15 +1691,12 @@ class _OrderPageState extends State<OrderPage> {
 
                   // Liberar la mesa
                   mesaState.liberarMesa(widget.numeroMesa);
-
-                  // Guardar el estado vacío (opcional, ya que liberarMesa lo hace)
-                  // _guardarPedidos(); // No es necesario porque liberarMesa ya limpia
                 });
 
                 // Mostrar confirmación
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("✓ Cuenta procesada y mesa liberada"),
+                    content: Text("✓ Cuenta procesada y guardada en el turno"),
                     backgroundColor: Colors.green,
                     duration: Duration(seconds: 2),
                   ),
@@ -1250,8 +1705,7 @@ class _OrderPageState extends State<OrderPage> {
                 // Regresar a la pantalla anterior después de un momento
                 Future.delayed(const Duration(milliseconds: 500), () {
                   if (mounted) {
-                    // ← Verificar que el widget sigue montado
-                    Navigator.of(context).pop(); // ← Usar context del widget
+                    Navigator.of(context).pop();
                   }
                 });
               },

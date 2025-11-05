@@ -113,4 +113,64 @@ class MesaState extends ChangeNotifier {
     _meseroActual = ""; // ✅ Limpiar también el mesero
     notifyListeners();
   }
+
+  // ✅ AGREGAR al final de la clase MesaState, antes del último }
+
+  // Obtener resumen completo de una mesa
+  Map<String, dynamic> obtenerResumenMesa(int numeroMesa) {
+    final ocupada = estaMesaOcupada(numeroMesa);
+    final comensales = obtenerComensales(numeroMesa);
+    final pedidosLocales = obtenerPedidos(numeroMesa);
+    final pedidosEnviados = obtenerPedidosEnviados(numeroMesa);
+
+    int totalProductos = 0;
+    double totalGeneral = 0.0;
+
+    // Contar productos locales
+    for (var pedido in pedidosLocales) {
+      totalProductos += pedido['cantidad'] as int;
+      totalGeneral += pedido['total'] as double;
+    }
+
+    // Contar productos enviados
+    for (var pedidoEnviado in pedidosEnviados) {
+      final alimentos = pedidoEnviado['alimentos'] as List;
+      for (var alimento in alimentos) {
+        totalProductos += alimento['cantidad'] as int;
+        totalGeneral += (alimento['precio'] * alimento['cantidad']) as double;
+      }
+    }
+
+    return {
+      'ocupada': ocupada,
+      'comensales': comensales,
+      'totalProductos': totalProductos,
+      'totalGeneral': totalGeneral,
+      'pedidosLocales': pedidosLocales.length,
+      'pedidosEnviados': pedidosEnviados.length,
+    };
+  }
+
+  // Obtener estadísticas generales del restaurante
+  Map<String, dynamic> obtenerEstadisticasGenerales() {
+    int mesasOcupadas = 0;
+    int totalComensales = 0;
+    double ventaTotal = 0.0;
+
+    for (var numeroMesa in _mesasOcupadas.keys) {
+      if (_mesasOcupadas[numeroMesa] == true) {
+        mesasOcupadas++;
+        totalComensales += obtenerComensales(numeroMesa);
+
+        final resumen = obtenerResumenMesa(numeroMesa);
+        ventaTotal += resumen['totalGeneral'] as double;
+      }
+    }
+
+    return {
+      'mesasOcupadas': mesasOcupadas,
+      'totalComensales': totalComensales,
+      'ventaTotal': ventaTotal,
+    };
+  }
 }

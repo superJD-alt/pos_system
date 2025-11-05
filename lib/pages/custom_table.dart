@@ -473,4 +473,173 @@ class _MesaBaseState extends State<MesaBase> {
       child: const CircleAvatar(radius: 15, backgroundColor: Colors.orange),
     );
   }
+
+  void _mostrarInformacionMesa() {
+    final resumenMesa = mesaState.obtenerResumenMesa(widget.numeroMesa);
+    final bool mesaOcupada = resumenMesa['ocupada'];
+    final int? comensales = resumenMesa['comensales'];
+    final int totalProductos = resumenMesa['totalProductos'];
+    final double totalGeneral = resumenMesa['totalGeneral'];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              mesaOcupada ? Icons.restaurant : Icons.check_circle,
+              color: mesaOcupada ? Colors.orange : Colors.green,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            Text('Mesa ${widget.numeroMesa}'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Estado de la mesa
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: mesaOcupada ? Colors.red.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: mesaOcupada ? Colors.red : Colors.green,
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    mesaOcupada ? '🔴 OCUPADA' : '🟢 DISPONIBLE',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: mesaOcupada ? Colors.red : Colors.green,
+                    ),
+                  ),
+                  if (mesaOcupada && comensales != null) ...[
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.person, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$comensales comensal${comensales != 1 ? 'es' : ''}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Información adicional
+            Row(
+              children: [
+                const Icon(Icons.chair, color: Colors.grey, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Capacidad: ${widget.cantidadPersonas} personas',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+
+            // ✅ NUEVO: Mostrar información de pedidos si está ocupada
+            if (mesaOcupada) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // Total de productos
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.shopping_cart, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Text('Total productos:', style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                  Text(
+                    '$totalProductos',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Total a pagar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.attach_money, color: Colors.green, size: 20),
+                      SizedBox(width: 8),
+                      Text('Total:', style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                  Text(
+                    '\$${totalGeneral.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (!mesaOcupada) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Esta mesa está disponible para nuevos clientes',
+                        style: TextStyle(fontSize: 12, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
 }

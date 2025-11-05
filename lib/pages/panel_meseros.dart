@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/pedidos_activos.dart';
 import 'package:pos_system/pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pos_system/pages/view_table.dart';
+import 'package:pos_system/pages/custom_table.dart';
+import 'package:pos_system/pages/resumen_turno_page.dart';
 
 class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
@@ -167,7 +169,7 @@ class _PanelMeserosState extends State<PanelMeseros> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const CustomTable(), //
+                                  builder: (context) => const ViewTable(),
                                 ),
                               );
                             },
@@ -203,7 +205,12 @@ class _PanelMeserosState extends State<PanelMeseros> {
                   // 🔹 Botón Resumen del turno
                   ElevatedButton(
                     onPressed: () {
-                      // Acción al presionar el botón
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ResumenTurnoPage(),
+                        ),
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
