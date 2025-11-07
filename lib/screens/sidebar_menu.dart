@@ -46,7 +46,7 @@ class SidebarMenu extends StatelessWidget {
                 _buildMenuItem(2, Icons.inventory, 'Inventario'),
                 _buildMenuItem(3, Icons.assessment, 'Reportes'),
                 _buildMenuItem(4, Icons.people, 'Usuarios'),
-                _buildMenuItem(5, Icons.shopping_bag, 'Productos'),
+                _buildMenuItem(5, Icons.shopping_bag, 'Menu'),
               ],
             ),
           ),
