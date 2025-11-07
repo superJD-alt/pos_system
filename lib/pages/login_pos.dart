@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pos_system/pages/panel_meseros.dart';
 import 'package:pos_system/pages/mesa_state.dart';
-import 'package:pos_system/screens/dashboard.dart'; // ✅ Importar MesaState
+import 'package:pos_system/screens/dashboard.dart';
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -79,17 +79,17 @@ class _LoginPosState extends State<LoginPos> {
 
       print('✅ Mesero establecido: $nombreMesero'); // Para debug
 
-      /*if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PanelMeseros()),
-      );*/
-
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const Dashboard()),
+        MaterialPageRoute(builder: (context) => const PanelMeseros()),
       );
+
+      /*/if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Dashboard()),
+      );*/
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         setState(() => errorMessage = 'Usuario no encontrado');
