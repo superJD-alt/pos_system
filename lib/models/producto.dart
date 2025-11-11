@@ -3,6 +3,7 @@ class Producto {
   final String nombre;
   final double precio;
   final String categoria;
+  final String? imagen;
   final bool disponible;
   final int? gramos;
   final String? tipo;
@@ -12,6 +13,7 @@ class Producto {
     required this.nombre,
     required this.precio,
     required this.categoria,
+    required this.imagen,
     required this.disponible,
     this.gramos,
     this.tipo,
@@ -24,6 +26,7 @@ class Producto {
       nombre: data['nombre'] ?? '',
       precio: (data['precio'] ?? 0).toDouble(),
       categoria: data['categoria'] ?? '',
+      imagen: data['imagen'],
       disponible: data['disponible'] ?? true,
       gramos: data['gramos'],
       tipo: data['tipo'],

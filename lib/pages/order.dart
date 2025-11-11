@@ -468,6 +468,8 @@ class _OrderPageState extends State<OrderPage> {
     }
 
     final categoryColor = getCategoryColor(producto.categoria);
+    final bool tieneImagen =
+        producto.imagen != null && producto.imagen!.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -510,35 +512,104 @@ class _OrderPageState extends State<OrderPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // ✅ Icono con animación de gradiente
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    categoryColor.withOpacity(0.2),
-                    categoryColor.withOpacity(0.4),
+            // ✅ Mostrar imagen o icono
+            if (tieneImagen)
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: categoryColor, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: categoryColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
                   ],
                 ),
-                shape: BoxShape.circle,
-                border: Border.all(color: categoryColor, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                    color: categoryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    spreadRadius: 1,
+                child: ClipOval(
+                  child: Image.network(
+                    producto.imagen!,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              categoryColor.withOpacity(0.2),
+                              categoryColor.withOpacity(0.4),
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: categoryColor,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              categoryColor.withOpacity(0.2),
+                              categoryColor.withOpacity(0.4),
+                            ],
+                          ),
+                        ),
+                        child: Icon(
+                          _getIconForCategory(producto.categoria),
+                          size: 45,
+                          color: categoryColor,
+                        ),
+                      );
+                    },
                   ),
-                ],
+                ),
+              )
+            else
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      categoryColor.withOpacity(0.2),
+                      categoryColor.withOpacity(0.4),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: categoryColor, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: categoryColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _getIconForCategory(producto.categoria),
+                  size: 45,
+                  color: categoryColor,
+                ),
               ),
-              child: Icon(
-                _getIconForCategory(producto.categoria),
-                size: 45,
-                color: categoryColor,
-              ),
-            ),
 
             const SizedBox(height: 10),
 

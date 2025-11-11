@@ -29,8 +29,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: CloudinaryTestScreen(productId: 'test_product_123'),
-      //home: LoginPos(), //vista de login
+      //home: CloudinaryTestScreen(productId: 'test_product_123'),
+      home: LoginPos(), //vista de login
     );
   }
 }
