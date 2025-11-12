@@ -515,10 +515,11 @@ class _OrderPageState extends State<OrderPage> {
             // ✅ Mostrar imagen o icono
             if (tieneImagen)
               Container(
-                width: 80,
-                height: 80,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(12),
+
                   border: Border.all(color: categoryColor, width: 3),
                   boxShadow: [
                     BoxShadow(
@@ -528,11 +529,12 @@ class _OrderPageState extends State<OrderPage> {
                     ),
                   ],
                 ),
-                child: ClipOval(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
                   child: Image.network(
                     producto.imagen!,
-                    width: 80,
-                    height: 80,
+                    width: 100,
+                    height: 100,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
@@ -583,8 +585,8 @@ class _OrderPageState extends State<OrderPage> {
               )
             else
               Container(
-                width: 80,
-                height: 80,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -594,7 +596,7 @@ class _OrderPageState extends State<OrderPage> {
                       categoryColor.withOpacity(0.4),
                     ],
                   ),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: categoryColor, width: 3),
                   boxShadow: [
                     BoxShadow(
@@ -740,38 +742,38 @@ class _OrderPageState extends State<OrderPage> {
             // ✅ Divisor visual mejorado
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              margin: const EdgeInsets.only(bottom: 12, left: 8, right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 10, left: 8, right: 8),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [categoryColor.withOpacity(0.9), categoryColor],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
                     color: categoryColor.withOpacity(0.4),
                     blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
                       _getIconForCategory(categoria),
                       color: Colors.white,
-                      size: 28,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -780,16 +782,16 @@ class _OrderPageState extends State<OrderPage> {
                           categoria.toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
+                            letterSpacing: 1.2,
                           ),
                         ),
                         Text(
                           '${productosCategoria.length} producto${productosCategoria.length != 1 ? 's' : ''}',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -797,16 +799,15 @@ class _OrderPageState extends State<OrderPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
                     ),
                     child: Text(
                       '${productosCategoria.length}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -824,7 +825,7 @@ class _OrderPageState extends State<OrderPage> {
                 itemCount: productosCategoria.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.40,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                 ),

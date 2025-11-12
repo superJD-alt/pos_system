@@ -26,7 +26,7 @@ class Producto {
       nombre: data['nombre'] ?? '',
       precio: (data['precio'] ?? 0).toDouble(),
       categoria: data['categoria'] ?? '',
-      imagen: data['imagen'],
+      imagen: data['url'],
       disponible: data['disponible'] ?? true,
       gramos: data['gramos'],
       tipo: data['tipo'],
@@ -41,6 +41,7 @@ class Producto {
       'categoria': categoria,
       'disponible': disponible,
       if (gramos != null) 'gramos': gramos,
+      if (imagen != null) 'url': imagen,
     };
   }
 }
