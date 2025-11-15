@@ -492,7 +492,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
     DocumentSnapshot doc,
     String name,
     String precio,
-
     String? imageUrl,
   ) {
     return Container(
@@ -564,79 +563,84 @@ class _ProductosScreenState extends State<ProductosScreen> {
             ),
           ),
 
-          // SECCIÓN DE INFORMACIÓN
+          // SECCIÓN DE INFORMACIÓN - CON SCROLLVIEW PARA EVITAR OVERFLOW
           Expanded(
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nombre del platillo
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Nombre del platillo
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Precio
+                        Text(
+                          '\$$precio',
+                          style: const TextStyle(
+                            color: Color(0xFF10B981),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Botones de Acción
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => editarProducto(doc),
+                                icon: const Icon(Icons.edit, size: 16),
+                                label: const Text(
+                                  'Editar',
+                                  style: TextStyle(fontSize: 11),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blue,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  side: const BorderSide(color: Colors.blue),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _eliminarProducto(doc.id),
+                                icon: const Icon(Icons.delete, size: 16),
+                                label: const Text(
+                                  'Borrar',
+                                  style: TextStyle(fontSize: 11),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  side: const BorderSide(color: Colors.red),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  // Precio y Stock
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '\$$precio',
-                        style: const TextStyle(
-                          color: Color(0xFF10B981),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                    ],
-                  ),
-
-                  // Botones de Acción
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => editarProducto(doc),
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text(
-                            'Editar',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            side: const BorderSide(color: Colors.blue),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _eliminarProducto(doc.id),
-                          icon: const Icon(Icons.delete, size: 16),
-                          label: const Text(
-                            'Borrar',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            side: const BorderSide(color: Colors.red),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),

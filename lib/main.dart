@@ -6,6 +6,7 @@ import 'package:pos_system/firebase_options.dart';
 import 'package:pos_system/pages/order.dart'; //ruta de la pagina de ordenes
 import 'pages/login_pos.dart'; //ruta para acceder a la pagina login_pos.dart
 import 'pages/custom_table.dart'; //ruta para la pagina de mesas
+import 'screens/dashboard.dart'; //ruta para la pagina de dashboard
 import 'screens/prueba.dart';
 
 void main() async {

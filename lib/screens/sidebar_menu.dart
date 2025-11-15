@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SidebarMenu extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onMenuItemSelected;
+  final String nombreUsuario;
+  final String correoUsuario;
+  final VoidCallback onLogout;
 
   const SidebarMenu({
     Key? key,
     required this.selectedIndex,
     required this.onMenuItemSelected,
+    required this.nombreUsuario,
+    required this.correoUsuario,
+    required this.onLogout,
   }) : super(key: key);
 
   @override
@@ -51,37 +58,41 @@ class SidebarMenu extends StatelessWidget {
             ),
           ),
           // User Info
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFF3B82F6),
-                  child: Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Admin',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'admin@pos.com',
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+          InkWell(
+            onTap: onLogout,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFF3B82F6),
+                    child: Icon(Icons.person, color: Colors.white),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nombreUsuario,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          correoUsuario,
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
