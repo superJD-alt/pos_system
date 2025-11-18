@@ -32,27 +32,94 @@ class _InventarioScreenState extends State<InventarioScreen> {
     super.dispose();
   }
 
+  // ✅ Generar siguiente código disponible
+  Future<String> _generarSiguienteCodigo() async {
+    try {
+      // Obtener todos los documentos para analizar sus IDs
+      final snapshot = await _firestore.collection('inventario').get();
+
+      if (snapshot.docs.isEmpty) {
+        return 'PAR-0001';
+      }
+
+      // Extraer todos los números de los códigos existentes
+      final numeros = <int>[];
+      final regex = RegExp(r'PAR-(\d+)');
+
+      for (var doc in snapshot.docs) {
+        final match = regex.firstMatch(doc.id);
+        if (match != null) {
+          numeros.add(int.parse(match.group(1)!));
+        }
+      }
+
+      if (numeros.isEmpty) {
+        return 'PAR-0001';
+      }
+
+      // Encontrar el número más alto y sumar 1
+      numeros.sort();
+      final siguienteNumero = numeros.last + 1;
+      return 'PAR-${siguienteNumero.toString().padLeft(4, '0')}';
+    } catch (e) {
+      print('Error al generar código: $e');
+      return 'PAR-0001';
+    }
+  }
+
+  // ✅ Verificar si un código ya existe (verificando el ID del documento)
+  Future<bool> _codigoExiste(String codigo) async {
+    try {
+      final codigoUpper = codigo.toUpperCase();
+      final doc = await _firestore
+          .collection('inventario')
+          .doc(codigoUpper)
+          .get();
+
+      return doc.exists;
+    } catch (e) {
+      print('Error al verificar código: $e');
+      return false;
+    }
+  }
+
   // Agregar producto
-  void agregarProducto() {
+  void agregarProducto() async {
+    // Generar código sugerido
+    final codigoSugerido = await _generarSiguienteCodigo();
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => ProductoDialog(
+        codigoSugerido: codigoSugerido,
         onSave: (producto) async {
           try {
-            await _firestore.collection('inventario').add(producto);
+            // ✅ Usar el código como ID del documento
+            final codigo = producto['id'] as String;
+            await _firestore.collection('inventario').doc(codigo).set(producto);
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Producto agregado exitosamente')),
+                const SnackBar(
+                  content: Text('Producto agregado exitosamente'),
+                  backgroundColor: Colors.green,
+                ),
               );
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           }
         },
+        onValidarCodigo: _codigoExiste,
       ),
     );
   }
@@ -63,27 +130,48 @@ class _InventarioScreenState extends State<InventarioScreen> {
       context: context,
       builder: (context) => ProductoDialog(
         productoActual: productoActual,
+        codigoOriginalEdicion: docId, // ✅ Pasar el ID del documento
         onSave: (producto) async {
           try {
-            await _firestore
-                .collection('inventario')
-                .doc(docId)
-                .update(producto);
+            final nuevoCodigo = producto['id'] as String;
+
+            // ✅ Si el código cambió, eliminar el viejo y crear uno nuevo
+            if (nuevoCodigo != docId) {
+              // Eliminar el documento viejo
+              await _firestore.collection('inventario').doc(docId).delete();
+              // Crear el documento nuevo con el nuevo código como ID
+              await _firestore
+                  .collection('inventario')
+                  .doc(nuevoCodigo)
+                  .set(producto);
+            } else {
+              // Si el código no cambió, solo actualizar
+              await _firestore
+                  .collection('inventario')
+                  .doc(docId)
+                  .update(producto);
+            }
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Producto actualizado exitosamente'),
+                  backgroundColor: Colors.green,
                 ),
               );
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           }
         },
+        onValidarCodigo: _codigoExiste,
       ),
     );
   }
@@ -107,7 +195,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Producto eliminado')),
+                    const SnackBar(
+                      content: Text('Producto eliminado'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               } catch (e) {
@@ -150,30 +241,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: agregarProducto,
-                  icon: const Icon(Icons.person_add),
+                  icon: const Icon(Icons.add_box),
                   label: const Text('Agregar Producto'),
                   style: ElevatedButton.styleFrom(
-                    //color de fondo
-                    backgroundColor:
-                        Colors.blueAccent, // Usar el color principal del tema
-                    foregroundColor:
-                        Colors.white, // Color del texto y del icono
-                    //bordes redondeados
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10), // Radio de 10
+                      borderRadius: BorderRadius.circular(10),
                     ),
-
-                    //relleno
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 15,
                     ),
-
-                    //sombra
                     elevation: 5,
                   ),
                 ),
@@ -205,7 +287,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
           return data['nombre'].toString().toLowerCase().contains(
                 _searchQuery,
               ) ||
-              data['id'].toString().toLowerCase().contains(_searchQuery) ||
+              doc.id.toLowerCase().contains(
+                _searchQuery,
+              ) || // ✅ Buscar por ID del documento
               data['categoria'].toString().toLowerCase().contains(_searchQuery);
         }).toList();
 
@@ -256,7 +340,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 var producto = doc.data() as Map<String, dynamic>;
                 return TableRow(
                   children: [
-                    _buildTableCell(producto['id'] ?? ''),
+                    _buildTableCell(doc.id), // ✅ Usar el ID del documento
                     _buildTableCell(producto['nombre'] ?? ''),
                     _buildTableCell(producto['categoria'] ?? ''),
                     _buildTableCell(producto['stock']?.toString() ?? '0'),
@@ -315,10 +399,19 @@ class _InventarioScreenState extends State<InventarioScreen> {
 // Dialog para agregar/editar productos
 class ProductoDialog extends StatefulWidget {
   final Map<String, dynamic>? productoActual;
+  final String? codigoSugerido;
+  final String? codigoOriginalEdicion; // ✅ ID del documento al editar
   final Function(Map<String, dynamic>) onSave;
+  final Future<bool> Function(String) onValidarCodigo;
 
-  const ProductoDialog({Key? key, this.productoActual, required this.onSave})
-    : super(key: key);
+  const ProductoDialog({
+    Key? key,
+    this.productoActual,
+    this.codigoSugerido,
+    this.codigoOriginalEdicion,
+    required this.onSave,
+    required this.onValidarCodigo,
+  }) : super(key: key);
 
   @override
   State<ProductoDialog> createState() => _ProductoDialogState();
@@ -337,11 +430,25 @@ class _ProductoDialogState extends State<ProductoDialog> {
   late TextEditingController _fechaCompraController;
   late TextEditingController _usoPrincipalController;
 
+  // Variables de estado para validación
+  bool _validandoCodigo = false;
+  String? _errorCodigo;
+  String? _codigoOriginal;
+
   @override
   void initState() {
     super.initState();
+
+    // ✅ Usar el ID del documento como código original al editar
+    _codigoOriginal =
+        widget.codigoOriginalEdicion ?? widget.productoActual?['id'];
+
     _idController = TextEditingController(
-      text: widget.productoActual?['id'] ?? '',
+      text:
+          widget.codigoOriginalEdicion ??
+          widget.productoActual?['id'] ??
+          widget.codigoSugerido ??
+          '',
     );
     _nombreController = TextEditingController(
       text: widget.productoActual?['nombre'] ?? '',
@@ -370,10 +477,65 @@ class _ProductoDialogState extends State<ProductoDialog> {
     _usoPrincipalController = TextEditingController(
       text: widget.productoActual?['uso_principal'] ?? '',
     );
+
+    // Listener para validar código en tiempo real
+    _idController.addListener(_validarCodigoEnTiempoReal);
+  }
+
+  // Validar código mientras se escribe
+  void _validarCodigoEnTiempoReal() async {
+    final codigo = _idController.text.trim().toUpperCase();
+
+    // Si está vacío, limpiar error
+    if (codigo.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _errorCodigo = null;
+        });
+      }
+      return;
+    }
+
+    // Validar formato
+    final regex = RegExp(r'^PAR-\d{4}$');
+    if (!regex.hasMatch(codigo)) {
+      if (mounted) {
+        setState(() {
+          _errorCodigo = 'Formato inválido. Use: PAR-0000';
+        });
+      }
+      return;
+    }
+
+    // Si estamos editando y es el mismo código, no validar
+    if (_codigoOriginal != null && codigo == _codigoOriginal!.toUpperCase()) {
+      if (mounted) {
+        setState(() {
+          _errorCodigo = null;
+        });
+      }
+      return;
+    }
+
+    // Validar si existe
+    setState(() {
+      _validandoCodigo = true;
+      _errorCodigo = null;
+    });
+
+    final existe = await widget.onValidarCodigo(codigo);
+
+    if (mounted) {
+      setState(() {
+        _validandoCodigo = false;
+        _errorCodigo = existe ? '❌ Este código ya existe' : null;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _idController.removeListener(_validarCodigoEnTiempoReal);
     _idController.dispose();
     _nombreController.dispose();
     _categoriaController.dispose();
@@ -404,13 +566,72 @@ class _ProductoDialogState extends State<ProductoDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
-                        controller: _idController,
-                        decoration: const InputDecoration(
-                          labelText: 'Código *',
-                        ),
-                        validator: (value) =>
-                            value?.isEmpty ?? true ? 'Campo requerido' : null,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextFormField(
+                            controller: _idController,
+                            decoration: InputDecoration(
+                              labelText: 'Código *',
+                              hintText: 'PAR-0000',
+                              suffixIcon: _validandoCodigo
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : _errorCodigo == null &&
+                                        _idController.text.isNotEmpty
+                                  ? const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                    )
+                                  : null,
+                            ),
+                            textCapitalization: TextCapitalization.characters,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Campo requerido';
+                              }
+                              final regex = RegExp(r'^PAR-\d{4}$');
+                              if (!regex.hasMatch(value!.toUpperCase())) {
+                                return 'Formato: PAR-0000';
+                              }
+                              if (_errorCodigo != null) {
+                                return _errorCodigo;
+                              }
+                              return null;
+                            },
+                          ),
+                          if (_errorCodigo != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, left: 12),
+                              child: Text(
+                                _errorCodigo!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          if (widget.codigoSugerido != null &&
+                              widget.productoActual == null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, left: 12),
+                              child: Text(
+                                '💡 Código sugerido: ${widget.codigoSugerido}',
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -529,23 +750,43 @@ class _ProductoDialogState extends State<ProductoDialog> {
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              widget.onSave({
-                'id': _idController.text,
-                'nombre': _nombreController.text,
-                'categoria': _categoriaController.text,
-                'stock': int.parse(_stockController.text),
-                'stock_minimo': int.parse(_stockMinimoController.text),
-                'precio_unitario': double.parse(_precioController.text),
-                'unidad_medida': _unidadMedidaController.text,
-                'proveedor': _proveedorController.text,
-                'fecha_compra': _fechaCompraController.text,
-                'uso_principal': _usoPrincipalController.text,
-              });
-              Navigator.pop(context);
-            }
-          },
+          onPressed: (_validandoCodigo || _errorCodigo != null)
+              ? null
+              : () async {
+                  if (_formKey.currentState!.validate()) {
+                    // Validación final antes de guardar
+                    final codigo = _idController.text.trim().toUpperCase();
+
+                    // Si estamos editando y es el mismo código, permitir
+                    if (_codigoOriginal == null ||
+                        codigo != _codigoOriginal!.toUpperCase()) {
+                      final existe = await widget.onValidarCodigo(codigo);
+                      if (existe) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('❌ El código "$codigo" ya existe'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+                    }
+
+                    widget.onSave({
+                      'id': codigo,
+                      'nombre': _nombreController.text,
+                      'categoria': _categoriaController.text,
+                      'stock': int.parse(_stockController.text),
+                      'stock_minimo': int.parse(_stockMinimoController.text),
+                      'precio_unitario': double.parse(_precioController.text),
+                      'unidad_medida': _unidadMedidaController.text,
+                      'proveedor': _proveedorController.text,
+                      'fecha_compra': _fechaCompraController.text,
+                      'uso_principal': _usoPrincipalController.text,
+                    });
+                    Navigator.pop(context);
+                  }
+                },
           child: const Text('Guardar'),
         ),
       ],

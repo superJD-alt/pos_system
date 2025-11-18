@@ -16,9 +16,8 @@ class ProductosScreen extends StatefulWidget {
 
 class _ProductosScreenState extends State<ProductosScreen> {
   // --- CONFIGURACIÓN DE CLOUDINARY ---
-  // REEMPLAZA ESTOS VALORES CON TUS CREDENCIALES DE CLOUDINARY
-  final String _cloudinaryCloudName = 'dkhbeu0ry'; // Ej: 'dmxxxxxxx'
-  final String _cloudinaryUploadPreset = 'pos_system'; // Ej: 'ml_default'
+  final String _cloudinaryCloudName = 'dkhbeu0ry';
+  final String _cloudinaryUploadPreset = 'pos_system';
 
   // --- CONTROLADORES DE ESTADO Y FIREBASE ---
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -32,7 +31,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   // Variables para manejo de imágenes
   final ImagePicker _imagePicker = ImagePicker();
   XFile? _imagenSeleccionada;
-  String? _urlImagenActual; // URL de Cloudinary
+  String? _urlImagenActual;
   bool _subiendoImagen = false;
 
   // Variable de estado para búsqueda
@@ -46,7 +45,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
     _searchController.dispose();
     _nombreController.dispose();
     _precioController.dispose();
-
     super.dispose();
   }
 
@@ -61,43 +59,41 @@ class _ProductosScreenState extends State<ProductosScreen> {
         imageQuality: 85,
       );
 
-      if (imagen != null) {
-        setState(() {
-          _imagenSeleccionada = imagen;
-        });
+      if (imagen != null && mounted) {
+        _imagenSeleccionada = imagen;
       }
     } catch (e) {
       print('Error al seleccionar imagen: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al seleccionar imagen: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar imagen: ${e.toString()}'),
+          ),
+        );
+      }
     }
   }
 
   Future<String?> _subirImagenACloudinary(XFile imagen) async {
     try {
-      setState(() => _subiendoImagen = true);
+      if (mounted) {
+        setState(() => _subiendoImagen = true);
+      }
 
       final url = Uri.parse(
         'https://api.cloudinary.com/v1_1/$_cloudinaryCloudName/image/upload',
       );
 
       final request = http.MultipartRequest('POST', url);
-
-      // Agregar el upload preset
       request.fields['upload_preset'] = _cloudinaryUploadPreset;
-      request.fields['folder'] =
-          'platillos'; // Carpeta en Cloudinary (opcional)
+      request.fields['folder'] = 'platillos';
 
-      // Agregar la imagen
       if (kIsWeb) {
-        // Para web
         final bytes = await imagen.readAsBytes();
         request.files.add(
           http.MultipartFile.fromBytes('file', bytes, filename: imagen.name),
         );
       } else {
-        // Para móvil
         request.files.add(
           await http.MultipartFile.fromPath('file', imagen.path),
         );
@@ -109,7 +105,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
       final jsonResponse = json.decode(responseString);
 
       if (response.statusCode == 200) {
-        // Cloudinary devuelve la URL en 'secure_url'
         return jsonResponse['secure_url'] as String;
       } else {
         print('Error de Cloudinary: $jsonResponse');
@@ -119,12 +114,16 @@ class _ProductosScreenState extends State<ProductosScreen> {
       }
     } catch (e) {
       print('Error al subir imagen a Cloudinary: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al subir imagen: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al subir imagen: ${e.toString()}')),
+        );
+      }
       return null;
     } finally {
-      setState(() => _subiendoImagen = false);
+      if (mounted) {
+        setState(() => _subiendoImagen = false);
+      }
     }
   }
 
@@ -133,7 +132,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
   void _limpiarFormulario() {
     _nombreController.clear();
     _precioController.clear();
-
     _productoIdEnEdicion = null;
     _imagenSeleccionada = null;
     _urlImagenActual = null;
@@ -143,6 +141,13 @@ class _ProductosScreenState extends State<ProductosScreen> {
   Future<void> _guardarProducto() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Evitar múltiples llamadas simultáneas
+    if (_subiendoImagen) return;
+
+    if (mounted) {
+      setState(() => _subiendoImagen = true);
+    }
+
     try {
       final double precio = double.parse(_precioController.text);
 
@@ -151,7 +156,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
       if (_imagenSeleccionada != null) {
         urlImagen = await _subirImagenACloudinary(_imagenSeleccionada!);
         if (urlImagen == null) {
-          // Si falla la subida, no continuar
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Error al subir la imagen')),
           );
@@ -160,41 +164,83 @@ class _ProductosScreenState extends State<ProductosScreen> {
       }
 
       final Map<String, dynamic> datos = {
-        'nombre': _nombreController.text,
+        'nombre': _nombreController.text.trim(),
         'precio': precio,
-        'url': urlImagen, // Guardar URL de Cloudinary
+        'url': urlImagen,
         'fechaActualizacion': FieldValue.serverTimestamp(),
       };
 
       if (_productoIdEnEdicion == null) {
         // CREAR (C)
         await _firestore.collection('platillos').add(datos);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Producto creado exitosamente')),
-        );
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Producto creado exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
         // ACTUALIZAR (U)
         await _firestore
             .collection('platillos')
             .doc(_productoIdEnEdicion)
             .update(datos);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Producto actualizado exitosamente')),
-        );
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Producto actualizado exitosamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
 
-      Navigator.of(context).pop(); // Cierra el diálogo
       _limpiarFormulario();
     } catch (e) {
       print('Error al guardar producto: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _subiendoImagen = false);
+      }
     }
   }
 
   // D: Eliminar un producto
   Future<void> _eliminarProducto(String productId) async {
+    // Confirmación antes de eliminar
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: const Text('¿Está seguro de eliminar este producto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
     try {
       await _firestore.collection('platillos').doc(productId).delete();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,7 +275,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
     _nombreController.text = data['nombre'] ?? '';
     _precioController.text = (data['precio'] ?? 0.0).toString();
     _urlImagenActual = data['url'];
-    _imagenSeleccionada = null; // Limpiar selección nueva
+    _imagenSeleccionada = null;
 
     _mostrarDialogoProducto(
       titulo: 'Editar Platillo',
@@ -243,6 +289,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   }) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -269,8 +316,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
                       ElevatedButton.icon(
                         onPressed: () async {
                           await _seleccionarImagen();
-                          setDialogState(() {}); // Actualizar el diálogo
-                          setState(() {}); // Actualizar el estado principal
+                          // Solo actualizar el diálogo, NO el widget principal
+                          setDialogState(() {});
                         },
                         icon: const Icon(Icons.image),
                         label: Text(
@@ -285,13 +332,20 @@ class _ProductosScreenState extends State<ProductosScreen> {
                       // CAMPOS DE TEXTO
                       TextFormField(
                         controller: _nombreController,
-                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre *',
+                          prefixIcon: Icon(Icons.restaurant_menu),
+                        ),
                         validator: (v) =>
                             v!.isEmpty ? 'Ingrese un nombre' : null,
                       ),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _precioController,
-                        decoration: const InputDecoration(labelText: 'Precio'),
+                        decoration: const InputDecoration(
+                          labelText: 'Precio *',
+                          prefixIcon: Icon(Icons.attach_money),
+                        ),
                         keyboardType: TextInputType.number,
                         validator: (v) =>
                             v!.isEmpty || double.tryParse(v) == null
@@ -304,16 +358,36 @@ class _ProductosScreenState extends State<ProductosScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: _subiendoImagen
+                      ? null
+                      : () {
+                          Navigator.of(context).pop();
+                          _limpiarFormulario();
+                        },
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: _subiendoImagen ? null : onGuardar,
+                  onPressed: _subiendoImagen
+                      ? null
+                      : () async {
+                          await onGuardar();
+                          // Actualizar el diálogo después de guardar
+                          if (mounted) {
+                            setDialogState(() {});
+                          }
+                        },
                   child: _subiendoImagen
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Guardando...'),
+                          ],
                         )
                       : const Text('Guardar'),
                 ),
@@ -326,7 +400,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
   }
 
   Widget _buildVistaPreviewImagen() {
-    // Si hay una imagen recién seleccionada, mostrarla
     if (_imagenSeleccionada != null) {
       if (kIsWeb) {
         return ClipRRect(
@@ -341,7 +414,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
       }
     }
 
-    // Si hay una URL guardada (editando), mostrarla
     if (_urlImagenActual != null && _urlImagenActual!.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -357,7 +429,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
       );
     }
 
-    // Si no hay imagen, mostrar placeholder
     return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -386,12 +457,14 @@ class _ProductosScreenState extends State<ProductosScreen> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) {
-                      setState(() {
-                        _filtroBusqueda = value.toLowerCase();
-                      });
+                      if (mounted) {
+                        setState(() {
+                          _filtroBusqueda = value.toLowerCase();
+                        });
+                      }
                     },
                     decoration: InputDecoration(
-                      hintText: 'Buscar por nombre, código o categoría...',
+                      hintText: 'Buscar por nombre o categoría...',
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -469,7 +542,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
             crossAxisCount: 4,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 0.7, // Ajustado para mejor proporción con imagen
+            childAspectRatio: 0.7,
           ),
           itemCount: documentosFiltrados.length,
           itemBuilder: (context, index) {
@@ -510,7 +583,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // SECCIÓN DE IMAGEN - Más prominente
+          // SECCIÓN DE IMAGEN
           Expanded(
             flex: 3,
             child: ClipRRect(
@@ -563,84 +636,76 @@ class _ProductosScreenState extends State<ProductosScreen> {
             ),
           ),
 
-          // SECCIÓN DE INFORMACIÓN - CON SCROLLVIEW PARA EVITAR OVERFLOW
+          // SECCIÓN DE INFORMACIÓN
           Expanded(
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nombre del platillo
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Precio
+                    Text(
+                      '\$$precio',
+                      style: const TextStyle(
+                        color: Color(0xFF10B981),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Botones de Acción
+                    Row(
                       children: [
-                        // Nombre del platillo
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Precio
-                        Text(
-                          '\$$precio',
-                          style: const TextStyle(
-                            color: Color(0xFF10B981),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => editarProducto(doc),
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text(
+                              'Editar',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.blue,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              side: const BorderSide(color: Colors.blue),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 8),
-
-                        // Botones de Acción
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => editarProducto(doc),
-                                icon: const Icon(Icons.edit, size: 16),
-                                label: const Text(
-                                  'Editar',
-                                  style: TextStyle(fontSize: 11),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.blue,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ),
-                                  side: const BorderSide(color: Colors.blue),
-                                ),
-                              ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _eliminarProducto(doc.id),
+                            icon: const Icon(Icons.delete, size: 16),
+                            label: const Text(
+                              'Borrar',
+                              style: TextStyle(fontSize: 11),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _eliminarProducto(doc.id),
-                                icon: const Icon(Icons.delete, size: 16),
-                                label: const Text(
-                                  'Borrar',
-                                  style: TextStyle(fontSize: 11),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.red,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ),
-                                  side: const BorderSide(color: Colors.red),
-                                ),
-                              ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              side: const BorderSide(color: Colors.red),
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
           ),
