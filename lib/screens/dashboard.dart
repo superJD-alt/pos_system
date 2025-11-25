@@ -5,9 +5,11 @@ import '../screens/inventario.dart';
 import '../screens/reportes.dart';
 import '../screens/usuarios.dart';
 import '../screens/productos.dart';
-import 'package:pos_system/screens/sidebar_menu.dart';
+// 🛑 CORRECCIÓN: La importación de SidebarMenu debe apuntar a la carpeta 'widgets'
+import '../screens/sidebar_menu.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pos_system/pages/login_pos.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -18,10 +20,11 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   int _selectedIndex = 0;
+  String _rolUsuario = 'cargando'; // Variable para almacenar el rol
 
-  String _nombreUsuarioLogeado = 'Cargando...'; // Valor inicial
-  String _correoUsuarioLogeado = 'cargando@pos.com'; // Valor inicial
-  bool _isLoading = true; // Estado para mostrar un indicador de carga
+  String _nombreUsuarioLogeado = 'Cargando...';
+  String _correoUsuarioLogeado = 'cargando@pos.com';
+  bool _isLoading = true;
 
   final List<String> _titles = [
     'Panel General',
@@ -48,24 +51,46 @@ class _DashboardState extends State<Dashboard> {
     _cargarDatosUsuario();
   }
 
-  // Función para obtener los datos del usuario logeado con Firebase Auth
-  void _cargarDatosUsuario() {
+  void _cargarDatosUsuario() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // Usamos el displayName y email, si son null, usamos valores por defecto
-      setState(() {
-        _nombreUsuarioLogeado = user.displayName ?? user.email ?? 'Usuario POS';
-        _correoUsuarioLogeado = user.email ?? 'sin_correo@pos.com';
-        _isLoading = false;
-      });
+      try {
+        // 1. Obtener el documento del usuario de la colección 'usuarios'
+        final userDoc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
+
+        String nombreDB = '';
+        String rolDB = 'unknown'; // Inicializar rol
+
+        if (userDoc.exists) {
+          // 2. Acceder a los campos de la base de datos
+          nombreDB = userDoc.data()?['nombre'] ?? user.email;
+          rolDB = userDoc.data()?['rol'] ?? 'unknown'; // Obtener el rol
+        }
+
+        setState(() {
+          // 3. Actualizar estados
+          _nombreUsuarioLogeado = nombreDB;
+          _correoUsuarioLogeado = user.email ?? 'sin_correo@pos.com';
+          _rolUsuario = rolDB; // Almacenar el rol
+          _isLoading = false;
+        });
+      } catch (e) {
+        print("Error al cargar datos de Firestore: $e");
+        setState(() {
+          // Fallback en caso de error de base de datos
+          _nombreUsuarioLogeado =
+              user.displayName ?? user.email ?? 'Error Nombre';
+          _correoUsuarioLogeado = user.email ?? 'error@pos.com';
+          _isLoading = false;
+        });
+      }
     } else {
-      // Si no hay usuario logeado (caso de error, aunque no debería pasar en el Dashboard)
-      setState(() {
-        _nombreUsuarioLogeado = 'No Logeado';
-        _correoUsuarioLogeado = 'acceso_denegado@pos.com';
-        _isLoading = false;
-      });
+      // Si no hay usuario logeado, forzamos la salida al login
+      _cerrarSesionSinConfirmacion();
     }
   }
 
@@ -75,7 +100,24 @@ class _DashboardState extends State<Dashboard> {
     });
   }
 
+  // Función auxiliar para cerrar sesión sin mostrar el diálogo (usada en caso de error o no logeado)
+  Future<void> _cerrarSesionSinConfirmacion() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginPos()),
+        );
+      }
+    } catch (e) {
+      print('Error al cerrar sesión (sin confirmación): $e');
+      // No mostramos SnackBar aquí, ya que es un flujo de emergencia
+    }
+  }
+
+  // FUNCIÓN PRINCIPAL LLAMADA POR EL SIDEBAR
   Future<void> _cerrarSesion() async {
+    // 1. Mostrar diálogo de confirmación
     final bool? confirmacion = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -101,19 +143,17 @@ class _DashboardState extends State<Dashboard> {
       },
     );
 
-    // Si el usuario confirmó el cierre (confirmacion es true)
+    // 2. Si el usuario confirmó el cierre (confirmacion es true)
     if (confirmacion == true) {
       try {
+        // Ejecución de la salida de Firebase
         await FirebaseAuth.instance.signOut();
 
-        // Navegar a la pantalla de inicio de sesión
+        // 3. Navegar a la pantalla de inicio de sesión
         if (mounted) {
-          // Usa la alternativa de MaterialPageRoute para evitar el error de ruta
+          // Usamos pushReplacement para que el usuario no pueda volver al Dashboard con el botón de atrás
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              // Asegúrate de importar y usar tu widget de inicio de sesión aquí
-              builder: (context) => const LoginPos(),
-            ),
+            MaterialPageRoute(builder: (context) => const LoginPos()),
           );
         }
       } catch (e) {
@@ -129,11 +169,11 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Si la información está cargando, mostramos un indicador de carga en el Sidebar
     final String displayNombre = _isLoading
         ? 'Cargando...'
         : _nombreUsuarioLogeado;
     final String displayCorreo = _isLoading ? '...' : _correoUsuarioLogeado;
+
     return Scaffold(
       body: Row(
         children: [
@@ -143,7 +183,7 @@ class _DashboardState extends State<Dashboard> {
             onMenuItemSelected: _onMenuItemSelected,
             nombreUsuario: displayNombre,
             correoUsuario: displayCorreo,
-            onLogout: _cerrarSesion,
+            onLogout: _cerrarSesion, // Aquí se pasa la función _cerrarSesion
           ),
           // Main Content
           Expanded(

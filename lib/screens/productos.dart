@@ -27,6 +27,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   // Controladores para el formulario de producto (CRUD)
   final _nombreController = TextEditingController();
   final _precioController = TextEditingController();
+  final _categoriaController = TextEditingController();
 
   // Variables para manejo de imágenes
   final ImagePicker _imagePicker = ImagePicker();
@@ -40,11 +41,30 @@ class _ProductosScreenState extends State<ProductosScreen> {
   // ID del documento si estamos editando
   String? _productoIdEnEdicion;
 
+  // Lista de categorías predefinidas (puedes personalizarlas)
+  final List<String> _categoriasDisponibles = [
+    'Entradas',
+    'Platos Fuertes',
+    'Sopas',
+    'Ensaladas',
+    'Postres',
+    'Bebidas',
+    'Desayunos',
+    'Mariscos',
+    'Carnes',
+    'Pastas',
+    'Vegetariano',
+    'Especiales',
+  ];
+
+  String? _categoriaSeleccionada;
+
   @override
   void dispose() {
     _searchController.dispose();
     _nombreController.dispose();
     _precioController.dispose();
+    _categoriaController.dispose();
     super.dispose();
   }
 
@@ -132,6 +152,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
   void _limpiarFormulario() {
     _nombreController.clear();
     _precioController.clear();
+    _categoriaController.clear();
+    _categoriaSeleccionada = null;
     _productoIdEnEdicion = null;
     _imagenSeleccionada = null;
     _urlImagenActual = null;
@@ -140,6 +162,17 @@ class _ProductosScreenState extends State<ProductosScreen> {
   // C: Crear o U: Actualizar un producto
   Future<void> _guardarProducto() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validar que se haya seleccionado una categoría
+    if (_categoriaSeleccionada == null || _categoriaSeleccionada!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor seleccione una categoría'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     // Evitar múltiples llamadas simultáneas
     if (_subiendoImagen) return;
@@ -166,6 +199,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
       final Map<String, dynamic> datos = {
         'nombre': _nombreController.text.trim(),
         'precio': precio,
+        'categoria': _categoriaSeleccionada,
         'url': urlImagen,
         'fechaActualizacion': FieldValue.serverTimestamp(),
       };
@@ -274,6 +308,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
     // Rellenar controladores con datos existentes
     _nombreController.text = data['nombre'] ?? '';
     _precioController.text = (data['precio'] ?? 0.0).toString();
+    _categoriaSeleccionada = data['categoria'];
     _urlImagenActual = data['url'];
     _imagenSeleccionada = null;
 
@@ -340,6 +375,30 @@ class _ProductosScreenState extends State<ProductosScreen> {
                             v!.isEmpty ? 'Ingrese un nombre' : null,
                       ),
                       const SizedBox(height: 12),
+
+                      // DROPDOWN DE CATEGORÍA
+                      DropdownButtonFormField<String>(
+                        value: _categoriaSeleccionada,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría *',
+                          prefixIcon: Icon(Icons.category),
+                        ),
+                        items: _categoriasDisponibles.map((categoria) {
+                          return DropdownMenuItem(
+                            value: categoria,
+                            child: Text(categoria),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            _categoriaSeleccionada = value;
+                          });
+                        },
+                        validator: (v) =>
+                            v == null ? 'Seleccione una categoría' : null,
+                      ),
+                      const SizedBox(height: 12),
+
                       TextFormField(
                         controller: _precioController,
                         decoration: const InputDecoration(
@@ -518,7 +577,10 @@ class _ProductosScreenState extends State<ProductosScreen> {
           final data = doc.data() as Map<String, dynamic>;
           final nombreProducto = (data['nombre'] as String? ?? '')
               .toLowerCase();
-          return nombreProducto.contains(_filtroBusqueda);
+          final categoriaProducto = (data['categoria'] as String? ?? '')
+              .toLowerCase();
+          return nombreProducto.contains(_filtroBusqueda) ||
+              categoriaProducto.contains(_filtroBusqueda);
         }).toList();
 
         if (documentosFiltrados.isEmpty) {
@@ -553,6 +615,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
               doc,
               data['nombre'] ?? 'Sin nombre',
               (data['precio'] ?? 0.0).toStringAsFixed(2),
+              data['categoria'] ?? 'Sin categoría',
               data['url'],
             );
           },
@@ -565,6 +628,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
     DocumentSnapshot doc,
     String name,
     String precio,
+    String categoria,
     String? imageUrl,
   ) {
     return Container(
@@ -654,6 +718,27 @@ class _ProductosScreenState extends State<ProductosScreen> {
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Categoría
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        categoria,
+                        style: const TextStyle(
+                          color: Color(0xFF3B82F6),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 8),
 

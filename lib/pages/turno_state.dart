@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:pos_system/models/cuenta_cerrada.dart';
+import 'package:intl/intl.dart'; // ✅ Agregar esta importación
 
 class TurnoState extends ChangeNotifier {
   static final TurnoState _instance = TurnoState._internal();
@@ -16,6 +17,15 @@ class TurnoState extends ChangeNotifier {
   // Fecha de inicio del turno
   DateTime? _inicioTurno;
 
+  // ✅ NUEVO: Getter para obtener el ID del turno actual
+  String? get turnoActual {
+    if (_inicioTurno == null) return null;
+
+    // Generar ID basado en la fecha de inicio del turno
+    final formatter = DateFormat('yyyyMMdd-HHmmss');
+    return 'TURNO-${formatter.format(_inicioTurno!)}';
+  }
+
   // Getter para obtener todas las cuentas
   List<CuentaCerrada> get cuentasCerradas =>
       List.unmodifiable(_cuentasCerradas);
@@ -27,6 +37,7 @@ class TurnoState extends ChangeNotifier {
   void _iniciarTurno() {
     if (_inicioTurno == null) {
       _inicioTurno = DateTime.now();
+      print('🔵 Turno iniciado: $turnoActual');
     }
   }
 
@@ -125,6 +136,7 @@ class TurnoState extends ChangeNotifier {
   // Limpiar turno (al cerrar turno o iniciar nuevo)
   void cerrarTurno() {
     print('📊 Turno cerrado:');
+    print('   ID Turno: $turnoActual');
     print('   Total ventas: \$${totalVentasTurno.toStringAsFixed(2)}');
     print('   Mesas atendidas: $totalMesasAtendidas');
     print('   Comensales: $totalComensalesAtendidos');
@@ -138,6 +150,7 @@ class TurnoState extends ChangeNotifier {
   // Obtener resumen completo del turno
   Map<String, dynamic> get resumenTurno {
     return {
+      'turnoId': turnoActual, // ✅ NUEVO: Agregar ID de turno al resumen
       'inicioTurno': _inicioTurno,
       'duracionTurno': duracionTurno,
       'duracionFormateada': duracionTurnoFormateada,

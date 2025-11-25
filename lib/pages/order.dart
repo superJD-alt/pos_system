@@ -6,6 +6,10 @@ import 'package:pos_system/pages/mesa_state.dart';
 import 'package:uuid/uuid.dart';
 import 'package:pos_system/pages/turno_state.dart';
 import 'package:pos_system/models/cuenta_cerrada.dart';
+import 'package:printing/printing.dart';
+import 'package:pos_system/pages/pdf_generator.dart';
+import 'dart:typed_data';
+import 'package:intl/intl.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -22,8 +26,8 @@ class OrderPage extends StatefulWidget {
 }
 
 class _OrderPageState extends State<OrderPage> {
-  //late List<Pedido> pedidos; //lista de pedidos
   final MesaState mesaState = MesaState();
+  final TurnoState turnoState = TurnoState();
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance; //instancia para Firestore
 
@@ -414,7 +418,7 @@ class _OrderPageState extends State<OrderPage> {
       itemCount: productos.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.80,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
       ),
@@ -739,7 +743,6 @@ class _OrderPageState extends State<OrderPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ Divisor visual mejorado
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -825,7 +828,7 @@ class _OrderPageState extends State<OrderPage> {
                 itemCount: productosCategoria.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 0.40,
+                  childAspectRatio: 0.80,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                 ),
@@ -895,7 +898,9 @@ class _OrderPageState extends State<OrderPage> {
           "total": producto.precio * cantidad,
           "nota": "",
           "enviado": false,
-          "productoId": producto.id, // Guardar ID para referencia
+          "productoId": producto.id,
+          "categoria": producto.categoria,
+          "tiempo": 1,
         };
         ordenes.add(nuevo);
         productoSeleccionado = nuevo;
@@ -1042,64 +1047,110 @@ class _OrderPageState extends State<OrderPage> {
 
         const SizedBox(height: 5),
 
-        // ===== BOTONES POS =====
-        Container(
-          height: 450,
-          padding: EdgeInsets.zero,
-          margin: EdgeInsets.zero,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: Colors.grey.shade400),
-          ),
+        //BOTONES POS-----
+        Expanded(
+          flex: 2,
           child: Padding(
-            padding: const EdgeInsets.all(2),
-            child: GridView.count(
-              crossAxisCount: 4,
-              mainAxisSpacing: 9,
-              crossAxisSpacing: 8,
-              childAspectRatio: 2.2,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _botonAccion(Icons.local_offer, "NOTA", _agregarNota),
-                _botonAccion(Icons.cancel, "CANCELAR", () {}),
-                _botonAccion(Icons.access_time, "TIEMPOS", _cambiarTiempo),
-                _botonAccion(Icons.delete, "", _eliminarProducto),
+            padding: const EdgeInsets.only(top: 8.0), // Espacio arriba
+            child: LayoutBuilder(
+              // 👈 Seguimos usando LayoutBuilder para obtener el ancho disponible
+              builder: (context, constraints) {
+                const int crossAxisCount =
+                    4; // Queremos 4 columnas fijas para el teclado numérico
+                const double mainAxisSpacing = 8; // Espaciado vertical
+                const double crossAxisSpacing = 8; // Espaciado horizontal
 
-                _botonAccion(Icons.swap_horiz, "TRANSFERIR", _transferirMesa),
-                _botonNumero(
-                  "1",
-                  onPressed: () {
-                    if (productoSeleccionado != null) {
-                      setState(() {
-                        productoSeleccionado!['cantidad'] = 1;
-                        productoSeleccionado!['total'] =
-                            (productoSeleccionado!['cantidad'] as int) *
-                            (productoSeleccionado!['precio'] as double);
-                        _recalcularTotales();
-                      });
-                    }
-                  },
-                ),
+                // Calcular el ancho de un solo botón
+                // constraints.maxWidth es el ancho total disponible para el GridView
+                // crossAxisSpacing * (crossAxisCount - 1) es el espacio total entre columnas
+                final double itemWidth =
+                    (constraints.maxWidth -
+                        crossAxisSpacing * (crossAxisCount - 1)) /
+                    crossAxisCount;
 
-                _botonNumero("2"),
-                _botonNumero("3"),
+                // Definir una altura deseada para los botones.
+                // Puedes ajustar este valor para controlar la altura visual de los botones.
+                // Por ejemplo, 50-70 píxeles es un buen rango para botones de POS.
+                const double desiredItemHeight =
+                    65.0; // 👈 AJUSTA ESTE VALOR SEGÚN TU PREFERENCIA
 
-                _botonAccion(Icons.print, "COMANDA", _enviarComanda),
-                _botonNumero("4"),
-                _botonNumero("5"),
-                _botonNumero("6"),
+                // Calcular el childAspectRatio (width / height)
+                // Esto hará que el alto se adapte proporcionalmente a este 'desiredItemHeight'
+                final double responsiveChildAspectRatio =
+                    itemWidth / desiredItemHeight;
 
-                _botonAccion(Icons.receipt_long, 'CUENTA', _procesarCuenta),
-                _botonNumero("7"),
-                _botonNumero("8"),
-                _botonNumero("9"),
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(color: Colors.grey.shade400),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: GridView.count(
+                      crossAxisCount: crossAxisCount, // 4 columnas
+                      mainAxisSpacing: mainAxisSpacing,
+                      crossAxisSpacing: crossAxisSpacing,
+                      childAspectRatio:
+                          responsiveChildAspectRatio, // 👈 Relación calculada
+                      physics:
+                          const NeverScrollableScrollPhysics(), // Mantener sin scroll interno
+                      children: [
+                        _botonAccion(Icons.local_offer, "NOTA", _agregarNota),
+                        _botonAccion(Icons.cancel, "CANCELAR", () {}),
+                        _botonAccion(
+                          Icons.access_time,
+                          "TIEMPOS",
+                          _cambiarTiempo,
+                        ),
+                        _botonAccion(Icons.delete, "BORRAR", _eliminarProducto),
 
-                const SizedBox.shrink(),
-                _botonAccion(Icons.add, "+", _incrementarCantidad),
-                _botonAccion(Icons.remove, "-", _disminuirCantidad),
-                _botonNumero("0"),
-              ],
+                        _botonAccion(
+                          Icons.swap_horiz,
+                          "TRANSFERIR",
+                          _transferirMesa,
+                        ),
+                        _botonNumero(
+                          "1",
+                          onPressed: () {
+                            if (productoSeleccionado != null) {
+                              setState(() {
+                                productoSeleccionado!['cantidad'] = 1;
+                                productoSeleccionado!['total'] =
+                                    (productoSeleccionado!['cantidad'] as int) *
+                                    (productoSeleccionado!['precio'] as double);
+                                _recalcularTotales();
+                              });
+                            }
+                          },
+                        ),
+
+                        _botonNumero("2"),
+                        _botonNumero("3"),
+
+                        _botonAccion(Icons.print, "COMANDA", _enviarComanda),
+                        _botonNumero("4"),
+                        _botonNumero("5"),
+                        _botonNumero("6"),
+
+                        _botonAccion(
+                          Icons.receipt_long,
+                          'CUENTA',
+                          _cerrarCuentaYGenerarPdf,
+                        ),
+                        _botonNumero("7"),
+                        _botonNumero("8"),
+                        _botonNumero("9"),
+
+                        const SizedBox.shrink(), // O un botón de acción para decimal/otro
+                        _botonAccion(Icons.add, "+", _incrementarCantidad),
+                        _botonAccion(Icons.remove, "-", _disminuirCantidad),
+                        _botonNumero("0"),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -1178,6 +1229,51 @@ class _OrderPageState extends State<OrderPage> {
             ),
         ],
       ),
+    );
+  }
+
+  /// Muestra el diálogo de vista previa y opciones de impresión/guardado del PDF
+  Future<void> _mostrarDialogoTicket(
+    Uint8List pdfBytes,
+    CuentaCerrada cuenta,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Center(
+            child: Text(
+              'Ticket Mesa ${cuenta.numeroMesa} Cerrada',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          content: SizedBox(
+            width: 500, // Ajusta el tamaño para tablet
+            height: 600, // Ajusta el tamaño
+            child: PdfPreview(
+              build: (format) => pdfBytes,
+              allowPrinting: true,
+              allowSharing: true,
+              maxPageWidth: 700,
+              pdfFileName:
+                  'Ticket_Mesa_${cuenta.numeroMesa}_${cuenta.fechaCierre.millisecondsSinceEpoch}.pdf',
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'Aceptar y Volver',
+                style: TextStyle(fontSize: 16),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1324,6 +1420,8 @@ class _OrderPageState extends State<OrderPage> {
           "total": producto['precio'] * cantidad,
           "nota": "",
           "enviado": false,
+          "categoria": producto['categoria'],
+          "tiempo": 1,
         };
         ordenes.add(nuevo);
         productoSeleccionado = nuevo;
@@ -1506,9 +1604,8 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // Enviar comanda a cocina
   void _enviarComanda() {
-    // Contar productos NO enviados
+    // 1. Contar productos NO enviados
     final productosNoEnviados = ordenes
         .where((item) => item['enviado'] != true)
         .toList();
@@ -1532,10 +1629,16 @@ class _OrderPageState extends State<OrderPage> {
       return;
     }
 
+    final String numMesa = widget.numeroMesa.toString();
+    final int numComensales = widget.comensales;
+    final String numPedido =
+        'CMA-${DateTime.now().millisecondsSinceEpoch % 10000}';
+
     // Mostrar diálogo de confirmación
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        // ✅ Usar dialogContext en lugar de context
         return AlertDialog(
           title: const Text("📋 Confirmar envío de comanda"),
           content: Column(
@@ -1543,7 +1646,7 @@ class _OrderPageState extends State<OrderPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Se enviarán ${productosNoEnviados.length} producto(s) a cocina:",
+                "Se enviarán ${productosNoEnviados.length} producto(s) a cocina/barra:",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -1569,45 +1672,102 @@ class _OrderPageState extends State<OrderPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () =>
+                  Navigator.pop(dialogContext), // ✅ Usar dialogContext
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  // ✅ NUEVO: Crear el pedido con el mesero y guardarlo
-                  final alimentosEnviados = productosNoEnviados.map((item) {
-                    return {
-                      "nombre": item['nombre'],
-                      "cantidad": item['cantidad'],
-                      "precio": item['precio'],
-                      "nota": item['nota'] ?? "",
-                      "tiempo": item['tiempo'] ?? 1,
-                    };
-                  }).toList();
+              onPressed: () async {
+                // ✅ IMPORTANTE: Cerrar el diálogo PRIMERO
+                Navigator.pop(dialogContext);
 
-                  // ✅ Usar agregarPedido() en lugar de guardarPedidos()
-                  mesaState.agregarPedido(widget.numeroMesa, alimentosEnviados);
+                // ✅ Separar productos por destino
+                final productosCocina = productosNoEnviados
+                    .where((p) => !_esBarra(p))
+                    .toList();
+                final productosBarra = productosNoEnviados
+                    .where((p) => _esBarra(p))
+                    .toList();
 
-                  // Marcar todos los productos NO enviados como enviados
-                  for (var item in ordenes) {
-                    if (item['enviado'] != true) {
-                      item['enviado'] = true;
-                    }
+                try {
+                  // ✅ Guardar comandas en Firestore
+                  if (productosCocina.isNotEmpty) {
+                    await _guardarComandaEnFirestore(
+                      id: '${numPedido}-COCINA',
+                      destino: 'cocina',
+                      productos: productosCocina,
+                    );
                   }
-                });
-                Navigator.pop(context);
 
-                // Mostrar confirmación
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      "✓ ${productosNoEnviados.length} producto(s) enviado(s) a cocina",
-                    ),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  if (productosBarra.isNotEmpty) {
+                    await _guardarComandaEnFirestore(
+                      id: '${numPedido}-BARRA',
+                      destino: 'barra',
+                      productos: productosBarra,
+                    );
+                  }
+
+                  // ✅ Generar e imprimir ticket
+                  final String comanda = _generarComandaTicket(
+                    productos: productosNoEnviados,
+                    numMesa: numMesa,
+                    numComensales: numComensales,
+                    numPedido: numPedido,
+                    mesaState: mesaState,
+                  );
+
+                  _imprimirComanda(comanda);
+
+                  // ✅ Actualizar estado local
+                  setState(() {
+                    final alimentosEnviados = productosNoEnviados.map((item) {
+                      return {
+                        "nombre": item['nombre'],
+                        "cantidad": item['cantidad'],
+                        "precio": item['precio'],
+                        "nota": item['nota'] ?? "",
+                        "tiempo": item['tiempo'] ?? 1,
+                        "categoria": item['categoria'] ?? "General",
+                      };
+                    }).toList();
+
+                    mesaState.agregarPedido(
+                      widget.numeroMesa,
+                      alimentosEnviados,
+                    );
+
+                    for (var item in ordenes) {
+                      if (item['enviado'] != true) {
+                        item['enviado'] = true;
+                      }
+                    }
+                  });
+
+                  // ✅ Mostrar mensaje de éxito solo si el widget sigue montado
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "✓ Comanda $numPedido enviada a Cocina/Barra",
+                        ),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('❌ Error al guardar comanda: $e');
+
+                  // ✅ Mostrar error solo si el widget sigue montado
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Error al enviar comanda: $e"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
@@ -1619,6 +1779,156 @@ class _OrderPageState extends State<OrderPage> {
         );
       },
     );
+  }
+
+  Future<void> _guardarComandaEnFirestore({
+    required String id,
+    required String destino,
+    required List<Map<String, dynamic>> productos,
+  }) async {
+    try {
+      final mesero = mesaState.meseroActual.isNotEmpty
+          ? mesaState.meseroActual
+          : 'Mesero Genérico';
+
+      final turnoId = turnoState.turnoActual;
+
+      final totalProductos = productos.fold<int>(
+        0,
+        (sum, p) => sum + (p['cantidad'] as int),
+      );
+
+      final productosParaFirestore = productos.map((p) {
+        return {
+          'nombre': p['nombre'] ?? '',
+          'cantidad': p['cantidad'] ?? 1,
+          'precio': p['precio'] ?? 0.0,
+          'nota': p['nota'] ?? '',
+          'tiempo': p['tiempo'] ?? 1,
+          'categoria': p['categoria'] ?? 'General',
+        };
+      }).toList();
+
+      final comandaData = {
+        'id': id,
+        'numeroMesa': widget.numeroMesa,
+        'mesero': mesero,
+        'comensales': widget.comensales,
+        'fechaHora': Timestamp.fromDate(DateTime.now()),
+        'destino': destino,
+        'estado': 'pendiente',
+        'productos': productosParaFirestore,
+        'totalProductos': totalProductos,
+        'turnoId': turnoId,
+      };
+
+      // ✅ Guardar en Firestore
+      await _firestore.collection('comandas').doc(id).set(comandaData);
+
+      print('✅ Comanda guardada exitosamente: $id');
+      print('   Destino: $destino');
+      print('   Productos: $totalProductos');
+      print('   Turno ID: ${turnoId ?? "Sin turno activo"}');
+    } catch (e) {
+      print('❌ Error al guardar comanda en Firestore: $e');
+      print('   Stack trace: ${StackTrace.current}');
+      rethrow; // Re-lanzar para que sea capturado en _enviarComanda
+    }
+  }
+
+  bool _esBarra(Map<String, dynamic> producto) {
+    final categoria = (producto['categoria'] as String?)?.toLowerCase() ?? '';
+    return categoria.contains('cerveza') ||
+        categoria.contains('brandy') ||
+        categoria.contains('tequila') ||
+        categoria.contains('mezcales') ||
+        categoria.contains('sin alcohol') ||
+        categoria.contains('cocteleria') ||
+        categoria.contains('vinos') ||
+        categoria.contains('whisky');
+  }
+
+  String _generarComandaTicket({
+    required List<Map<String, dynamic>> productos,
+    required String numMesa,
+    required int numComensales,
+    required String numPedido,
+    // 👈 NUEVO: Recibe el objeto mesaState para obtener el mesero
+    required MesaState mesaState,
+  }) {
+    // Obtención del mesero de forma consistente con el ticket final
+    final String mesero = mesaState.meseroActual.isNotEmpty
+        ? mesaState.meseroActual
+        : 'Mesero Genérico';
+
+    final now = DateTime.now();
+    final String fechaHora = DateFormat('dd/MM/yyyy HH:mm:ss').format(now);
+
+    // 💥 Pasamos el MAPA COMPLETO a la función _esBarra para que acceda a 'categoria'
+    final productosBarra = productos.where((p) => _esBarra(p)).toList();
+    final productosCocina = productos.where((p) => !_esBarra(p)).toList();
+
+    final buffer = StringBuffer();
+
+    // ... el resto de la función (encabezados, etc.) ...
+
+    // --- 1. ENCABEZADO DE COMANDA ---
+    buffer.writeln('********************************');
+    buffer.writeln('*** PUNTO DE VENTA PARRILLA VILLA  ***');
+    buffer.writeln('********************************');
+    buffer.writeln('PEDIDO No.: $numPedido');
+    buffer.writeln('MESA: $numMesa');
+    // 💥 USAMOS LA VARIABLE OBTENIDA INTERNAMENTE
+    buffer.writeln('MESERO: ${mesero.toUpperCase()}');
+    buffer.writeln('COMENSALES: $numComensales');
+    buffer.writeln('FECHA/HORA: $fechaHora');
+    buffer.writeln('--------------------------------');
+
+    void _formatProductos(List<Map<String, dynamic>> lista) {
+      for (var item in lista) {
+        final cantidad = (item['cantidad'] as int).toString().padLeft(3);
+        final nombre = item['nombre'] as String;
+        final nota = item['nota'] as String?;
+
+        buffer.writeln('(${cantidad}) ${nombre.toUpperCase()}');
+
+        if (nota != null && nota.isNotEmpty) {
+          buffer.writeln('    ** NOTA: $nota **');
+        }
+      }
+    }
+
+    // --- 2. SECCIÓN COCINA ---
+    if (productosCocina.isNotEmpty) {
+      buffer.writeln('\n===== DESTINO: COCINA =====');
+      buffer.writeln('--------------------------------');
+      _formatProductos(productosCocina);
+    }
+
+    // --- 3. SECCIÓN BARRA ---
+    if (productosBarra.isNotEmpty) {
+      buffer.writeln('\n====== DESTINO: BARRA ======');
+      buffer.writeln('--------------------------------');
+      _formatProductos(productosBarra);
+    }
+
+    // --- 4. PIE DE PÁGINA ---
+    buffer.writeln('\n================================');
+    buffer.writeln('IMPRESO: ${DateFormat('HH:mm:ss').format(DateTime.now())}');
+    buffer.writeln('********************************');
+
+    return buffer.toString();
+  }
+
+  // 💡 Placeholder para la función de impresión real
+  // En una aplicación real, usarías un paquete como 'esc_pos_utils' o 'blue_thermal_printer'.
+  void _imprimirComanda(String comanda) {
+    // Aquí iría la lógica para enviar la cadena 'comanda' a la impresora POS (red o bluetooth)
+
+    // Por ahora, solo la mostramos en consola para verificar el formato
+    print("--- INICIO IMPRESIÓN COMANDA ---");
+    print(comanda);
+    print("--- FIN IMPRESIÓN COMANDA ---");
   }
 
   void _procesarCuenta() {
@@ -1791,6 +2101,119 @@ class _OrderPageState extends State<OrderPage> {
         );
       },
     );
+  }
+
+  /// 💰 Cierra la cuenta, guarda, registra en TurnoState y genera el PDF
+  Future<void> _cerrarCuentaYGenerarPdf() async {
+    if (ordenes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La orden está vacía. No se puede cerrar la cuenta.'),
+        ),
+      );
+      return;
+    }
+
+    // Confirmación al usuario antes de cerrar
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Cierre de Cuenta'),
+        content: Text(
+          '¿Estás seguro de cerrar la cuenta de la Mesa ${widget.numeroMesa} por \$${totalGeneral.toStringAsFixed(2)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Cerrar Cuenta',
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // 1. Obtención de datos necesarios
+    final mesero = mesaState.meseroActual.isNotEmpty
+        ? mesaState.meseroActual
+        : 'Mesero Genérico';
+    final idCuenta = const Uuid().v4();
+    final fechaCierre = DateTime.now();
+    // Asumimos una fecha de apertura simple para el ticket
+    final fechaApertura = fechaCierre.subtract(const Duration(minutes: 60));
+    final numeroMesa = widget.numeroMesa;
+    final comensales = widget.comensales;
+
+    // Filtrar solo los datos relevantes para la cuenta cerrada
+    final productosList = ordenes.map<Map<String, dynamic>>((item) {
+      return {
+        'nombre': item['nombre'] as String,
+        'precio': item['precio'] as double,
+        'cantidad': item['cantidad'] as int,
+        'total': item['total'] as double,
+        'nota': item['nota'] ?? '',
+        'enviado': item['enviado'] ?? false, // Incluir estado enviado
+      };
+    }).toList();
+
+    final totalItems = productosList.fold(
+      0,
+      (sum, item) => sum + (item['cantidad'] as int),
+    );
+
+    final totalCuenta = totalGeneral;
+
+    final cuentaCerrada = CuentaCerrada(
+      id: idCuenta,
+      numeroMesa: numeroMesa,
+      mesero: mesero,
+      comensales: comensales,
+      fechaApertura: fechaApertura,
+      fechaCierre: fechaCierre,
+      productos: productosList,
+      totalItems: totalItems,
+      totalCuenta: totalCuenta,
+    );
+
+    try {
+      // 2. Guardar en Firestore
+      await _firestore
+          .collection('cuentasCerradas')
+          .doc(idCuenta)
+          .set(cuentaCerrada.toMap());
+
+      // 3. Registrar en TurnoState
+      turnoState.agregarCuentaCerrada(cuentaCerrada);
+
+      // 4. Generar el PDF
+      final pdfBytes = await generateTicketPdf(cuentaCerrada);
+
+      // 5. Mostrar el diálogo e impresión
+      await _mostrarDialogoTicket(pdfBytes, cuentaCerrada);
+
+      // 6. Usar liberarMesa (limpiar y desocupar)
+      mesaState.liberarMesa(widget.numeroMesa);
+
+      // 7. Navegar de vuelta
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      print('❌ Error al cerrar cuenta y generar PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al procesar el cierre de cuenta: $e')),
+        );
+      }
+    }
   }
 
   // Agregar este método en la clase _OrderPageState

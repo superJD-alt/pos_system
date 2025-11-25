@@ -9,27 +9,33 @@ import 'pages/custom_table.dart'; //ruta para la pagina de mesas
 import 'screens/dashboard.dart'; //ruta para la pagina de dashboard
 import 'screens/prueba.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  ); //inicializacion de Firebase
+  await initializeDateFormatting('es', null);
+
+  // 1. Inicialización de Firebase (SOLO UNA VEZ y con options)
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
 
-  // ✅ Para web, usar persistencia LOCAL
+  // 2. Configurar persistencia de sesión: SOLO si es plataforma WEB
+  // En plataformas nativas (iOS, Android, Desktop), la persistencia es automática.
   if (kIsWeb) {
-    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    try {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      debugPrint("Persistencia de Auth configurada para Web.");
+    } catch (e) {
+      debugPrint("Error al configurar la persistencia web: $e");
+    }
   }
 
-  await Firebase.initializeApp();
-
-  // ✅ Configurar persistencia de sesión
-  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  // ❌ Se eliminó la línea "await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);"
+  //    que no estaba envuelta en el 'if (kIsWeb)' y causaba el UnimplementedError.
 
   runApp(const MyApp());
 }

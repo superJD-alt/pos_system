@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_system/widgets/content_card.dart';
 
@@ -17,23 +18,83 @@ class _CajaScreenState extends State<CajaScreen> {
   Map<String, dynamic>? _cajaActual;
   bool _cargando = true;
 
-  // Control de usuarios autorizados
+  // Estado para el usuario logueado
+  User? _currentUser;
+  String? _currentUserName;
+  String? _currentUserRole; // Almacenará el rol en minúsculas
+
+  // Control de usuarios autorizados (solo para el Dropdown en el cierre)
   List<Map<String, dynamic>> _usuariosAutorizados = [];
-  String? _usuarioSeleccionado;
+
+  // Formateador de moneda
+  final NumberFormat currencyFormat = NumberFormat.currency(
+    locale: 'es_CL',
+    symbol: '\$',
+  );
+
+  // Formateador de fecha
+  final DateFormat dateTimeFormat = DateFormat('dd/MM/yy HH:mm');
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _cargarUsuariosAutorizados();
     _verificarCajaAbierta();
   }
 
-  // Cargar usuarios con rol "cajero" o "administrador"
+  // MODIFICACIÓN CLAVE 1: Normaliza el rol del usuario actual
+  Future<void> _loadCurrentUser() async {
+    _currentUser = FirebaseAuth.instance.currentUser;
+    if (_currentUser == null) {
+      setState(() => _cargando = false);
+      return;
+    }
+
+    try {
+      final userDoc = await _firestore
+          .collection('usuarios')
+          .doc(_currentUser!.uid)
+          .get();
+
+      if (userDoc.exists) {
+        setState(() {
+          _currentUserName =
+              userDoc.get('nombre') ?? 'Cajero ID: ${_currentUser!.uid}';
+          // Convertir el rol a minúsculas aquí
+          _currentUserRole = (userDoc.data()?['rol'] as String?)?.toLowerCase();
+        });
+      } else {
+        setState(() {
+          _currentUserName = 'Cajero ID: ${_currentUser!.uid}';
+        });
+      }
+    } catch (e) {
+      print('Error al cargar datos del usuario actual: $e');
+      setState(() {
+        _currentUserName = 'Error Cargando Nombre';
+      });
+    }
+  }
+
+  // MODIFICACIÓN CLAVE 2: Normaliza los roles de los usuarios autorizados
   Future<void> _cargarUsuariosAutorizados() async {
     try {
+      // Usamos whereIn para capturar todos los usuarios con roles relevantes,
+      // la normalización a minúsculas se hace al guardar en la lista.
       final snapshot = await _firestore
           .collection('usuarios')
-          .where('rol', whereIn: ['cajero', 'administrador'])
+          .where(
+            'rol',
+            whereIn: [
+              'cajero',
+              'administrador',
+              'Cajero',
+              'Administrador',
+              'CAJERO',
+              'ADMINISTRADOR',
+            ],
+          )
           .get();
 
       setState(() {
@@ -42,7 +103,8 @@ class _CajaScreenState extends State<CajaScreen> {
               (doc) => {
                 'id': doc.id,
                 'nombre': doc.data()['nombre'] ?? 'Sin nombre',
-                'rol': doc.data()['rol'] ?? '',
+                // Convertir el rol a minúsculas aquí para usarlo en el Dropdown
+                'rol': (doc.data()['rol'] as String?)?.toLowerCase() ?? '',
               },
             )
             .toList();
@@ -56,35 +118,53 @@ class _CajaScreenState extends State<CajaScreen> {
     setState(() => _cargando = true);
 
     try {
-      // Consulta simplificada - NO requiere índice
       final snapshot = await _firestore
           .collection('cajas')
           .where('estado', isEqualTo: 'abierta')
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        // Si hay múltiples cajas abiertas (no debería pasar), tomar la primera
         setState(() {
           _cajaActualId = snapshot.docs.first.id;
           _cajaActual = snapshot.docs.first.data();
+        });
+      } else {
+        setState(() {
+          _cajaActualId = null;
+          _cajaActual = null;
         });
       }
     } catch (e) {
       print('Error al verificar caja: $e');
     } finally {
-      setState(() => _cargando = false);
+      if (_currentUserName != null || _currentUser == null) {
+        setState(() => _cargando = false);
+      }
     }
   }
 
   Future<void> _mostrarDialogoAperturaCaja() async {
-    // Verificar que haya usuarios autorizados
-    if (_usuariosAutorizados.isEmpty) {
+    if (_currentUser == null || _currentUserName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            '⚠️ No hay usuarios autorizados. Registra cajeros o administradores primero.',
+            '⚠️ Error: No se pudo cargar la información del usuario logueado.',
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    // El rol ya está en minúsculas gracias a _loadCurrentUser
+    if (_currentUserRole != 'administrador' && _currentUserRole != 'cajero') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '🚫 Solo administradores y cajeros pueden abrir la caja.',
+          ),
+          backgroundColor: Colors.red,
           duration: Duration(seconds: 4),
         ),
       );
@@ -93,7 +173,6 @@ class _CajaScreenState extends State<CajaScreen> {
 
     final formKey = GlobalKey<FormState>();
     final fondoController = TextEditingController(text: '1000');
-    String? cajeroSeleccionado = _usuariosAutorizados.first['id'];
     String turnoSeleccionado = 'mañana';
 
     await showDialog(
@@ -113,49 +192,27 @@ class _CajaScreenState extends State<CajaScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Selector de usuario autorizado
-                  DropdownButtonFormField<String>(
-                    value: cajeroSeleccionado,
-                    decoration: const InputDecoration(
-                      labelText: 'Cajero / Administrador',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
-                    items: _usuariosAutorizados.map((usuario) {
-                      return DropdownMenuItem<String>(
-                        value: usuario['id'],
-                        child: Row(
-                          children: [
-                            Text(usuario['nombre']),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: usuario['rol'] == 'administrador'
-                                    ? Colors.purple.shade100
-                                    : Colors.blue.shade100,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                usuario['rol'].toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: usuario['rol'] == 'administrador'
-                                      ? Colors.purple.shade900
-                                      : Colors.blue.shade900,
-                                ),
-                              ),
-                            ),
-                          ],
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cajero de Apertura: $_currentUserName',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
                         ),
-                      );
-                    }).toList(),
-                    validator: (v) => v == null ? 'Selecciona un cajero' : null,
-                    onChanged: (v) =>
-                        setDialogState(() => cajeroSeleccionado = v),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
@@ -203,17 +260,14 @@ class _CajaScreenState extends State<CajaScreen> {
               ),
               onPressed: () async {
                 if (formKey.currentState!.validate()) {
-                  // Obtener nombre del cajero seleccionado
-                  final cajero = _usuariosAutorizados.firstWhere(
-                    (u) => u['id'] == cajeroSeleccionado,
-                    orElse: () => {'nombre': 'Desconocido'},
-                  );
+                  final cajeroNombre = _currentUserName!;
+                  final cajeroId = _currentUser!.uid;
 
                   Navigator.pop(context);
                   await _abrirCaja(
                     double.parse(fondoController.text),
-                    cajero['nombre'],
-                    cajeroSeleccionado!,
+                    cajeroNombre,
+                    cajeroId,
                     turnoSeleccionado,
                   );
                 }
@@ -232,11 +286,11 @@ class _CajaScreenState extends State<CajaScreen> {
     String turno,
   ) async {
     try {
-      final docRef = await _firestore.collection('cajas').add({
+      await _firestore.collection('cajas').add({
         'fecha_apertura': FieldValue.serverTimestamp(),
         'fondo_inicial': fondo,
         'cajero': cajeroNombre,
-        'cajeroId': cajeroId, // Guardar ID del usuario
+        'cajeroId': cajeroId,
         'turno': turno,
         'estado': 'abierta',
         'total_efectivo': 0.0,
@@ -396,6 +450,10 @@ class _CajaScreenState extends State<CajaScreen> {
       // Actualizar totales de la caja
       final cajaRef = _firestore.collection('cajas').doc(_cajaActualId);
 
+      // Los movimientos que afectan el efectivo esperado son:
+      // Ingreso efectivo (aumenta efectivo esperado) y Egreso (disminuye efectivo esperado).
+      // Tarjeta y Transferencia aumentan los totales, pero no el efectivo físico esperado.
+
       if (tipo == 'ingreso') {
         if (categoria == 'venta_efectivo') {
           await cajaRef.update({
@@ -409,9 +467,13 @@ class _CajaScreenState extends State<CajaScreen> {
             'total_transferencia': FieldValue.increment(monto),
           });
         } else if (categoria == 'propinas') {
+          // Si las propinas son en efectivo, deberían incrementar el efectivo esperado.
+          // Por simplicidad, asumiremos que las propinas en efectivo se registran como 'venta_efectivo'
+          // si son parte de una venta, y solo se registra el total_propinas aquí si son de otra fuente.
           await cajaRef.update({'total_propinas': FieldValue.increment(monto)});
         }
       } else {
+        // Todo egreso implica una salida de efectivo (disminuye efectivo esperado)
         await cajaRef.update({
           'total_egresos': FieldValue.increment(monto),
           'efectivo_esperado': FieldValue.increment(-monto),
@@ -440,20 +502,27 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Future<void> _mostrarDialogoCierreCaja() async {
-    // Verificar autorización
     if (_cajaActual == null) return;
 
-    final cajeroId = _cajaActual!['cajeroId'] as String?;
-
-    // Verificar que el usuario que cierra sea cajero o administrador
-    if (_usuariosAutorizados.isEmpty) {
-      await _cargarUsuariosAutorizados();
+    if (_currentUser == null || _currentUserName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⚠️ Error: No se pudo cargar la información del usuario logueado para el cierre.',
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
     }
 
     final formKey = GlobalKey<FormState>();
     final efectivoContadoController = TextEditingController();
     final notasController = TextEditingController();
-    String? usuarioCierreId = cajeroId; // Por defecto, el mismo que abrió
+
+    // Por defecto, el usuario que cierra es el que está logueado
+    String? usuarioCierreId = _currentUser!.uid;
 
     final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
 
@@ -496,12 +565,14 @@ class _CajaScreenState extends State<CajaScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
+                                // El rol ya está en minúsculas para la comparación
                                 color: usuario['rol'] == 'administrador'
                                     ? Colors.purple.shade100
                                     : Colors.blue.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
+                                // Mostramos el rol en mayúsculas para mejor visualización
                                 usuario['rol'].toUpperCase(),
                                 style: TextStyle(
                                   fontSize: 10,
@@ -533,7 +604,7 @@ class _CajaScreenState extends State<CajaScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Efectivo Esperado: ${efectivo_esperado.toStringAsFixed(2)}",
+                            "Efectivo Esperado: ${currencyFormat.format(efectivo_esperado)}",
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -557,7 +628,6 @@ class _CajaScreenState extends State<CajaScreen> {
                     validator: (v) =>
                         double.tryParse(v!) == null ? 'Monto inválido' : null,
                     onChanged: (v) {
-                      // Mostrar diferencia en tiempo real
                       setDialogState(() {});
                     },
                   ),
@@ -584,7 +654,10 @@ class _CajaScreenState extends State<CajaScreen> {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            "${(double.parse(efectivoContadoController.text) - efectivo_esperado).toStringAsFixed(2)}",
+                            currencyFormat.format(
+                              double.parse(efectivoContadoController.text) -
+                                  efectivo_esperado,
+                            ),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
@@ -685,7 +758,7 @@ class _CajaScreenState extends State<CajaScreen> {
             content: Text(
               diferencia == 0
                   ? "✓ Caja cerrada por $usuarioCierreNombre - Sin diferencias"
-                  : "✓ Caja cerrada por $usuarioCierreNombre - Diferencia: ${diferencia.toStringAsFixed(2)}",
+                  : "✓ Caja cerrada por $usuarioCierreNombre - Diferencia: ${currencyFormat.format(diferencia)}",
             ),
             backgroundColor: diferencia == 0 ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 4),
@@ -703,7 +776,7 @@ class _CajaScreenState extends State<CajaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando) {
+    if (_cargando || _currentUserName == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -773,8 +846,17 @@ class _CajaScreenState extends State<CajaScreen> {
                       ),
                     ),
                   ),
+                  // El botón de movimientos ahora solo dirige la vista al widget de abajo
                   ElevatedButton.icon(
-                    onPressed: () => _mostrarMovimientos(),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Consulta la sección "Movimientos del Día" abajo.',
+                          ),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.receipt_long),
                     label: const Text('Ver Movimientos'),
                     style: ElevatedButton.styleFrom(
@@ -801,16 +883,101 @@ class _CajaScreenState extends State<CajaScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Lista de movimientos del día
+              // Lista de movimientos del día (Implementación regresada)
               _buildMovimientosDelDia(),
             ],
 
             const SizedBox(height: 24),
-            // Historial de cierres
+            // Historial de cierres (Implementación regresada)
             _buildHistorialCierres(),
           ],
         ),
       ),
+    );
+  }
+
+  // Widget auxiliar para las tarjetas de información
+  Widget _buildInfoCard(String title, String value, Color color) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCards() {
+    if (_cajaActual == null) return const SizedBox();
+
+    final fondo_inicial = _cajaActual!['fondo_inicial'] ?? 0.0;
+    final total_efectivo = _cajaActual!['total_efectivo'] ?? 0.0;
+    final total_tarjeta = _cajaActual!['total_tarjeta'] ?? 0.0;
+    final total_transferencia = _cajaActual!['total_transferencia'] ?? 0.0;
+    final total_propinas = _cajaActual!['total_propinas'] ?? 0.0;
+    final total_egresos = _cajaActual!['total_egresos'] ?? 0.0;
+    final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
+
+    final total_ingresos =
+        total_efectivo + total_tarjeta + total_transferencia + total_propinas;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                'Fondo Inicial',
+                currencyFormat.format(fondo_inicial),
+                Colors.blue.shade600,
+              ),
+            ),
+            Expanded(
+              child: _buildInfoCard(
+                'Ingresos Totales',
+                currencyFormat.format(total_ingresos),
+                Colors.green.shade600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                'Efectivo Esperado',
+                currencyFormat.format(efectivo_esperado),
+                Colors.red.shade600,
+              ),
+            ),
+            Expanded(
+              child: _buildInfoCard(
+                'Egresos Totales',
+                currencyFormat.format(total_egresos),
+                Colors.orange.shade600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -862,352 +1029,42 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  Widget _buildInfoCards() {
-    if (_cajaActual == null) return const SizedBox();
-
-    final fondo_inicial = _cajaActual!['fondo_inicial'] ?? 0.0;
-    final total_efectivo = _cajaActual!['total_efectivo'] ?? 0.0;
-    final total_tarjeta = _cajaActual!['total_tarjeta'] ?? 0.0;
-    final total_transferencia = _cajaActual!['total_transferencia'] ?? 0.0;
-    final total_propinas = _cajaActual!['total_propinas'] ?? 0.0;
-    final total_egresos = _cajaActual!['total_egresos'] ?? 0.0;
-    final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
-
-    final total_ingresos =
-        total_efectivo + total_tarjeta + total_transferencia + total_propinas;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildInfoCard(
-                'Fondo Inicial',
-                '${fondo_inicial.toStringAsFixed(2)}',
-                Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildInfoCard(
-                'Efectivo Esperado',
-                '${efectivo_esperado.toStringAsFixed(2)}',
-                Colors.purple,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildInfoCard(
-                'Ventas Efectivo',
-                '${total_efectivo.toStringAsFixed(2)}',
-                Colors.green,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildInfoCard(
-                'Ventas Tarjeta',
-                '${total_tarjeta.toStringAsFixed(2)}',
-                Colors.indigo,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildInfoCard(
-                'Transferencias',
-                '${total_transferencia.toStringAsFixed(2)}',
-                Colors.teal,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildInfoCard(
-                'Propinas',
-                '${total_propinas.toStringAsFixed(2)}',
-                Colors.amber,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildInfoCard(
-                'Total Ingresos',
-                '${total_ingresos.toStringAsFixed(2)}',
-                Colors.green.shade700,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildInfoCard(
-                'Total Egresos',
-                '${total_egresos.toStringAsFixed(2)}',
-                Colors.red,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoCard(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: color.withOpacity(0.8),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // REIMPLEMENTADO: Muestra los movimientos en tiempo real de la caja actual
   Widget _buildMovimientosDelDia() {
-    if (_cajaActualId == null) return const SizedBox();
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('movimientos_caja')
-          .where('cajaId', isEqualTo: _cajaActualId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No hay movimientos registrados'),
-            ),
-          );
-        }
-
-        // Ordenar manualmente y limitar a 5 más recientes
-        final docs = snapshot.data!.docs.toList();
-        docs.sort((a, b) {
-          final fechaA =
-              (a.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-          final fechaB =
-              (b.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-
-          if (fechaA == null && fechaB == null) return 0;
-          if (fechaA == null) return 1;
-          if (fechaB == null) return -1;
-
-          return fechaB.compareTo(fechaA);
-        });
-
-        final limitedDocs = docs.take(5).toList();
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Últimos Movimientos',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                ...limitedDocs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final tipo = data['tipo'] ?? '';
-                  final monto = data['monto'] ?? 0.0;
-                  final categoria = data['categoria'] ?? '';
-                  final descripcion = data['descripcion'] ?? '';
-
-                  return ListTile(
-                    leading: Icon(
-                      tipo == 'ingreso'
-                          ? Icons.arrow_downward
-                          : Icons.arrow_upward,
-                      color: tipo == 'ingreso' ? Colors.green : Colors.red,
-                    ),
-                    title: Text(categoria.replaceAll('_', ' ').toUpperCase()),
-                    subtitle: Text(descripcion.isEmpty ? '-' : descripcion),
-                    trailing: Text(
-                      "${monto.toStringAsFixed(2)}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: tipo == 'ingreso' ? Colors.green : Colors.red,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ],
-            ),
+    if (_cajaActualId == null) {
+      return const ContentCard(
+        title: 'Movimientos del Día',
+        child: Center(
+          child: Text(
+            'No hay caja abierta para registrar movimientos.',
+            style: TextStyle(color: Colors.grey),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    }
 
-  void _mostrarMovimientos() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => MovimientosScreen(cajaId: _cajaActualId!),
-      ),
-    );
-  }
+    // Mapeo para nombres de categorías más amigables
+    const categoryNames = {
+      'venta_efectivo': 'Venta Efectivo',
+      'venta_tarjeta': 'Venta Tarjeta',
+      'venta_transferencia': 'Venta Transferencia',
+      'propinas': 'Propinas',
+      'otros_ingresos': 'Otros Ingresos',
+      'compra_ingredientes': 'Compra Ingredientes',
+      'pago_proveedor': 'Pago Proveedor',
+      'servicios': 'Servicios',
+      'retiro_autorizado': 'Retiro',
+      'devolucion': 'Devolución',
+      'otros_egresos': 'Otros Egresos',
+    };
 
-  Widget _buildHistorialCierres() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('cajas')
-          .where('estado', isEqualTo: 'cerrada')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No hay historial de cierres'),
-            ),
-          );
-        }
-
-        // Ordenar manualmente en memoria
-        final docs = snapshot.data!.docs.toList();
-        docs.sort((a, b) {
-          final fechaA =
-              (a.data() as Map<String, dynamic>)['fechaCierre'] as Timestamp?;
-          final fechaB =
-              (b.data() as Map<String, dynamic>)['fechaCierre'] as Timestamp?;
-
-          if (fechaA == null && fechaB == null) return 0;
-          if (fechaA == null) return 1;
-          if (fechaB == null) return -1;
-
-          return fechaB.compareTo(fechaA); // Descendente (más reciente primero)
-        });
-
-        // Limitar a 10 más recientes
-        final limitedDocs = docs.take(10).toList();
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Historial de Cierres',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Fecha')),
-                      DataColumn(label: Text('Cajero')),
-                      DataColumn(label: Text('Turno')),
-                      DataColumn(label: Text('Fondo Inicial')),
-                      DataColumn(label: Text('Ingresos')),
-                      DataColumn(label: Text('Egresos')),
-                      DataColumn(label: Text('Diferencia')),
-                    ],
-                    rows: snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final fechaCierre = data['fechaCierre'] as Timestamp?;
-                      final total_ingresos =
-                          (data['total_efectivo'] ?? 0.0) +
-                          (data['total_tarjeta'] ?? 0.0) +
-                          (data['total_transferencia'] ?? 0.0) +
-                          (data['total_propinas'] ?? 0.0);
-
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Text(
-                              fechaCierre != null
-                                  ? DateFormat(
-                                      'dd/MM/yyyy HH:mm',
-                                    ).format(fechaCierre.toDate())
-                                  : '-',
-                            ),
-                          ),
-                          DataCell(Text(data['cajero'] ?? '-')),
-                          DataCell(Text(data['turno'] ?? '-')),
-                          DataCell(
-                            Text(
-                              "${(data['fondo_inicial'] ?? 0.0).toStringAsFixed(2)}",
-                            ),
-                          ),
-                          DataCell(
-                            Text("${total_ingresos.toStringAsFixed(2)}"),
-                          ),
-                          DataCell(
-                            Text(
-                              "${(data['total_egresos'] ?? 0.0).toStringAsFixed(2)}",
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              "${(data['diferencia'] ?? 0.0).toStringAsFixed(2)}",
-                              style: TextStyle(
-                                color: (data['diferencia'] ?? 0.0) == 0
-                                    ? Colors.green
-                                    : Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Pantalla de movimientos detallados
-class MovimientosScreen extends StatelessWidget {
-  final String cajaId;
-
-  const MovimientosScreen({Key? key, required this.cajaId}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Movimientos de Caja')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
+    return ContentCard(
+      title: 'Movimientos del Día',
+      child: StreamBuilder<QuerySnapshot>(
+        stream: _firestore
             .collection('movimientos_caja')
-            .where('cajaId', isEqualTo: cajaId)
+            .where('cajaId', isEqualTo: _cajaActualId)
+            .orderBy('fecha', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -1219,82 +1076,142 @@ class MovimientosScreen extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No hay movimientos registrados'));
+            return const Center(child: Text('No hay movimientos registrados.'));
           }
 
-          // Ordenar manualmente por fecha (más reciente primero)
-          final docs = snapshot.data!.docs.toList();
-          docs.sort((a, b) {
-            final fechaA =
-                (a.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-            final fechaB =
-                (b.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-
-            if (fechaA == null && fechaB == null) return 0;
-            if (fechaA == null) return 1;
-            if (fechaB == null) return -1;
-
-            return fechaB.compareTo(fechaA);
-          });
+          final movimientos = snapshot.data!.docs;
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: movimientos.length,
             itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final tipo = data['tipo'] ?? '';
-              final categoria = data['categoria'] ?? '';
+              final movimiento = movimientos[index];
+              final data = movimiento.data() as Map<String, dynamic>;
+              final tipo = data['tipo'] as String;
               final monto = data['monto'] ?? 0.0;
-              final descripcion = data['descripcion'] ?? '';
-              final fecha = data['fecha'] as Timestamp?;
-              final cajero = data['cajero'] ?? '';
+              final categoria = data['categoria'] as String;
+              final descripcion = data['descripcion'] ?? 'Sin descripción';
+              final fecha = (data['fecha'] as Timestamp?)?.toDate();
+
+              final isIngreso = tipo == 'ingreso';
+              final color = isIngreso
+                  ? Colors.green.shade700
+                  : Colors.red.shade700;
+              final icon = isIngreso
+                  ? Icons.arrow_upward
+                  : Icons.arrow_downward;
+              final sign = isIngreso ? '+' : '-';
+              final categoryText = categoryNames[categoria] ?? categoria;
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: color.withOpacity(0.1),
+                  child: Icon(icon, color: color),
+                ),
+                title: Text(
+                  '$sign ${currencyFormat.format(monto)} (${categoryText})',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                ),
+                subtitle: Text('$descripcion\nCajero: ${data['cajero']}'),
+                trailing: Text(
+                  fecha != null ? dateTimeFormat.format(fecha) : '',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // REIMPLEMENTADO: Muestra el historial de cierres
+  Widget _buildHistorialCierres() {
+    return ContentCard(
+      title: 'Historial de Cierres de Caja (Cortes Anteriores)',
+      child: StreamBuilder<QuerySnapshot>(
+        stream: _firestore
+            .collection('cajas')
+            .where('estado', isEqualTo: 'cerrada')
+            .orderBy('fechaCierre', descending: true)
+            .limit(10) // Mostrar solo los últimos 10 cierres
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Text('No hay cierres de caja registrados.'),
+            );
+          }
+
+          final cierres = snapshot.data!.docs;
+
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: cierres.length,
+            itemBuilder: (context, index) {
+              final cierre = cierres[index];
+              final data = cierre.data() as Map<String, dynamic>;
+              final fechaCierre = (data['fechaCierre'] as Timestamp?)?.toDate();
+              final diferencia = data['diferencia'] ?? 0.0;
+              final fondo = data['fondo_inicial'] ?? 0.0;
+              final contado = data['efectivoContado'] ?? 0.0;
+
+              final color = diferencia == 0
+                  ? Colors.green
+                  : diferencia > 0
+                  ? Colors.orange.shade800
+                  : Colors.red.shade800;
+              final diffText = diferencia == 0
+                  ? 'Sin diferencia'
+                  : 'Diferencia: ${currencyFormat.format(diferencia)}';
 
               return Card(
-                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 1,
+                margin: const EdgeInsets.symmetric(vertical: 8),
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: tipo == 'ingreso'
-                        ? Colors.green.shade100
-                        : Colors.red.shade100,
-                    child: Icon(
-                      tipo == 'ingreso' ? Icons.add : Icons.remove,
-                      color: tipo == 'ingreso' ? Colors.green : Colors.red,
-                    ),
-                  ),
+                  leading: Icon(Icons.archive, color: color),
                   title: Text(
-                    categoria.replaceAll('_', ' ').toUpperCase(),
+                    'Corte del ${fechaCierre != null ? dateTimeFormat.format(fechaCierre) : 'Fecha Desconocida'}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  subtitle: Text(
+                    'Cajero de Apertura: ${data['cajero']}\nCerrado por: ${data['cerradoPor']}\nFondo Inicial: ${currencyFormat.format(fondo)}',
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (descripcion.isNotEmpty) Text(descripcion),
-                      const SizedBox(height: 4),
                       Text(
-                        'Cajero: $cajero',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      if (fecha != null)
-                        Text(
-                          DateFormat(
-                            'dd/MM/yyyy HH:mm:ss',
-                          ).format(fecha.toDate()),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
+                        currencyFormat.format(contado),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
+                      ),
+                      Text(
+                        diffText,
+                        style: TextStyle(color: color, fontSize: 12),
+                      ),
                     ],
                   ),
-                  trailing: Text(
-                    "${tipo == 'ingreso' ? '+' : '-'}${monto.toStringAsFixed(2)}",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: tipo == 'ingreso' ? Colors.green : Colors.red,
-                    ),
-                  ),
+                  onTap: () {
+                    // Acción para ver detalles completos del cierre (opcional)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Corte seleccionado: ${cierre.id}'),
+                      ),
+                    );
+                  },
                 ),
               );
             },

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart'; // ✅ AGREGAR
 import '../widgets/content_card.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class UsuariosScreen extends StatefulWidget {
   const UsuariosScreen({Key? key}) : super(key: key);
@@ -11,9 +11,8 @@ class UsuariosScreen extends StatefulWidget {
 }
 
 class _UsuariosScreenState extends State<UsuariosScreen> {
-  // Inicializar Firestore de forma segura
   FirebaseFirestore? _firestore;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseFunctions? _functions; // ✅ NUEVO
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
@@ -21,6 +20,8 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   String _rolSeleccionado = 'Cajero';
   String _estadoSeleccionado = 'Activo';
   bool _isFirebaseInitialized = false;
+  bool _isEditMode = false;
+  String? _userIdEnEdicion; // ✅ NUEVO: Para guardar el ID al editar
 
   final List<String> rolesDisponibles = [
     'Administrador',
@@ -40,6 +41,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   Future<void> _initializeFirebase() async {
     try {
       _firestore = FirebaseFirestore.instance;
+      _functions = FirebaseFunctions.instance; // ✅ Inicializar Functions
       setState(() {
         _isFirebaseInitialized = true;
       });
@@ -65,127 +67,117 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     _passwordController.clear();
     _rolSeleccionado = 'Cajero';
     _estadoSeleccionado = 'Activo';
+    _isEditMode = false;
+    _userIdEnEdicion = null;
   }
 
+  // ✅ CREAR USUARIO CON CLOUD FUNCTION
   Future<void> _crearUsuario() async {
-    if (!_isFirebaseInitialized || _firestore == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Firebase no está inicializado'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    if (_formKey.currentState!.validate()) {
-      try {
-        // --- PASO 1: CREAR USUARIO EN FIREBASE AUTHENTICATION ---
-        final UserCredential userCredential = await _auth
-            .createUserWithEmailAndPassword(
-              email: _emailController.text
-                  .trim(), // Es buena práctica hacer trim()
-              password: _passwordController.text,
-            );
+    try {
+      _mostrarCargando(context);
 
-        final String userId = userCredential.user!.uid; // Obtenemos el UID
+      final callable = _functions!.httpsCallable('crearUsuario');
+      final result = await callable.call({
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text,
+        'nombre': _nombreController.text.trim(),
+        'rol': _rolSeleccionado,
+        'estado': _estadoSeleccionado,
+      });
 
-        // --- PASO 2: GUARDAR DATOS EN CLOUD FIRESTORE USANDO EL UID COMO DOC ID ---
-        await _firestore!.collection('usuarios').doc(userId).set({
-          'nombre': _nombreController.text,
-          'email': _emailController.text,
-          'rol': _rolSeleccionado,
-          'estado': _estadoSeleccionado,
-          'fechaCreacion': FieldValue.serverTimestamp(),
-        });
+      Navigator.of(context).pop(); // Cerrar loading
+      Navigator.of(context).pop(); // Cerrar diálogo
 
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Usuario creado exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } on FirebaseAuthException catch (e) {
-        // Manejo de errores específicos de autenticación (email ya en uso, contraseña débil, etc.)
-        String mensajeError = 'Error de autenticación: ${e.code}';
-        if (e.code == 'weak-password') {
-          mensajeError = 'La contraseña es demasiado débil.';
-        } else if (e.code == 'email-already-in-use') {
-          mensajeError = 'El email ya está registrado.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(mensajeError), backgroundColor: Colors.red),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear usuario: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      if (result.data['success']) {
+        _mostrarSnackBar('Usuario creado exitosamente', Colors.green);
+        _limpiarFormulario();
       }
+    } on FirebaseFunctionsException catch (e) {
+      Navigator.of(context).pop(); // Cerrar loading
+      _mostrarSnackBar('Error: ${e.message}', Colors.red);
+    } catch (e) {
+      Navigator.of(context).pop(); // Cerrar loading
+      _mostrarSnackBar('Error inesperado: $e', Colors.red);
     }
   }
 
-  // Actualizar usuario en Firebase
-  Future<void> _actualizarUsuario(String userId) async {
-    if (!_isFirebaseInitialized || _firestore == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Firebase no está inicializado'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+  // ✅ ACTUALIZAR USUARIO CON CLOUD FUNCTION
+  Future<void> _actualizarUsuario() async {
+    if (!_formKey.currentState!.validate() || _userIdEnEdicion == null) return;
 
-    if (_formKey.currentState!.validate()) {
-      try {
-        await _firestore!.collection('usuarios').doc(userId).update({
-          'nombre': _nombreController.text,
-          'email': _emailController.text,
-          'rol': _rolSeleccionado,
-          'estado': _estadoSeleccionado,
-          'fechaActualizacion': FieldValue.serverTimestamp(),
+    try {
+      _mostrarCargando(context);
+
+      // Actualizar datos básicos
+      final callableUpdate = _functions!.httpsCallable('actualizarUsuario');
+      await callableUpdate.call({
+        'userId': _userIdEnEdicion,
+        'nombre': _nombreController.text.trim(),
+        'rol': _rolSeleccionado,
+        'estado': _estadoSeleccionado,
+      });
+
+      // Si el email cambió, actualizarlo
+      final docSnapshot = await _firestore!
+          .collection('usuarios')
+          .doc(_userIdEnEdicion)
+          .get();
+      final emailActual = docSnapshot.data()?['email'] ?? '';
+
+      if (emailActual != _emailController.text.trim()) {
+        final callableEmail = _functions!.httpsCallable('actualizarEmail');
+        await callableEmail.call({
+          'userId': _userIdEnEdicion,
+          'nuevoEmail': _emailController.text.trim(),
         });
-
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Usuario actualizado exitosamente'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al actualizar usuario: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
+
+      // Si hay nueva contraseña, actualizarla
+      if (_passwordController.text.isNotEmpty) {
+        final callablePassword = _functions!.httpsCallable(
+          'actualizarPassword',
+        );
+        await callablePassword.call({
+          'userId': _userIdEnEdicion,
+          'nuevaPassword': _passwordController.text,
+        });
+      }
+
+      Navigator.of(context).pop(); // Cerrar loading
+      Navigator.of(context).pop(); // Cerrar diálogo
+
+      _mostrarSnackBar('Usuario actualizado exitosamente', Colors.blue);
+      _limpiarFormulario();
+    } on FirebaseFunctionsException catch (e) {
+      Navigator.of(context).pop(); // Cerrar loading
+      _mostrarSnackBar('Error: ${e.message}', Colors.red);
+    } catch (e) {
+      Navigator.of(context).pop(); // Cerrar loading
+      _mostrarSnackBar('Error inesperado: $e', Colors.red);
     }
   }
 
-  // Eliminar usuario de Firebase
+  // ✅ ELIMINAR USUARIO CON CLOUD FUNCTION
   Future<void> _eliminarUsuario(String userId, String nombre) async {
-    if (!_isFirebaseInitialized || _firestore == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Firebase no está inicializado'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirmar eliminación'),
-          content: Text('¿Está seguro de eliminar a $nombre?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('¿Está seguro de eliminar a $nombre?'),
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ Esta acción eliminará al usuario de Authentication y Firestore',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -193,23 +185,25 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
+                Navigator.of(context).pop(); // Cerrar diálogo de confirmación
+
                 try {
-                  await _firestore!.collection('usuarios').doc(userId).delete();
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Usuario eliminado'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  _mostrarCargando(context);
+
+                  final callable = _functions!.httpsCallable('eliminarUsuario');
+                  final result = await callable.call({'userId': userId});
+
+                  Navigator.of(context).pop(); // Cerrar loading
+
+                  if (result.data['success']) {
+                    _mostrarSnackBar('Usuario eliminado', Colors.red);
+                  }
+                } on FirebaseFunctionsException catch (e) {
+                  Navigator.of(context).pop(); // Cerrar loading
+                  _mostrarSnackBar('Error: ${e.message}', Colors.red);
                 } catch (e) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error al eliminar usuario: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  Navigator.of(context).pop(); // Cerrar loading
+                  _mostrarSnackBar('Error inesperado: $e', Colors.red);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -223,28 +217,27 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   void nuevoUsuario() {
     _limpiarFormulario();
+    _isEditMode = false;
     _mostrarDialogoUsuario(titulo: 'Nuevo Usuario', onGuardar: _crearUsuario);
   }
 
   void editarUsuario(String userId, Map<String, dynamic> usuario) {
+    _isEditMode = true;
+    _userIdEnEdicion = userId;
     _nombreController.text = usuario['nombre'] ?? '';
     _emailController.text = usuario['email'] ?? '';
 
-    // Validar que el rol exista en las opciones disponibles
-    final rolesDisponibles = ['Administrador', 'Cajero', 'Mesero', 'Cocinero'];
     _rolSeleccionado = rolesDisponibles.contains(usuario['rol'])
         ? usuario['rol']
         : 'Cajero';
 
-    // Validar que el estado exista en las opciones disponibles
-    final estadosDisponibles = ['Activo', 'Inactivo'];
     _estadoSeleccionado = estadosDisponibles.contains(usuario['estado'])
         ? usuario['estado']
         : 'Activo';
 
     _mostrarDialogoUsuario(
       titulo: 'Editar Usuario',
-      onGuardar: () => _actualizarUsuario(userId),
+      onGuardar: _actualizarUsuario,
     );
   }
 
@@ -265,6 +258,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Campo Nombre
                       TextFormField(
                         controller: _nombreController,
                         decoration: const InputDecoration(
@@ -273,13 +267,15 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                           prefixIcon: Icon(Icons.person),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Por favor ingrese el nombre';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
+
+                      // Campo Email (✅ AHORA EDITABLE)
                       TextFormField(
                         controller: _emailController,
                         decoration: const InputDecoration(
@@ -289,7 +285,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                         ),
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Por favor ingrese el email';
                           }
                           if (!value.contains('@')) {
@@ -298,25 +294,39 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 16),
+
+                      // Campo Contraseña
                       TextFormField(
                         controller: _passwordController,
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.lock),
+                        decoration: InputDecoration(
+                          labelText: _isEditMode
+                              ? 'Nueva contraseña (opcional)'
+                              : 'Contraseña',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock),
+                          helperText: _isEditMode
+                              ? 'Dejar en blanco para no cambiar'
+                              : null,
                         ),
-                        obscureText: true, // Para ocultar la contraseña
+                        obscureText: true,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          // Solo validar si NO estamos editando o si hay texto
+                          if (!_isEditMode &&
+                              (value == null || value.isEmpty)) {
                             return 'Por favor ingrese la contraseña';
                           }
-                          if (value.length < 6) {
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              value.length < 6) {
                             return 'La contraseña debe tener al menos 6 caracteres';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
+
+                      // Dropdown Rol
                       DropdownButtonFormField<String>(
                         value: _rolSeleccionado,
                         decoration: const InputDecoration(
@@ -339,6 +349,8 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+
+                      // Dropdown Estado
                       DropdownButtonFormField<String>(
                         value: _estadoSeleccionado,
                         decoration: const InputDecoration(
@@ -366,7 +378,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _limpiarFormulario();
+                  },
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
@@ -381,6 +396,24 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     );
   }
 
+  void _mostrarCargando(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+  }
+
+  void _mostrarSnackBar(String mensaje, Color color) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: color));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -393,31 +426,23 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  '',
-                  style: TextStyle(fontSize: 5, fontWeight: FontWeight.bold),
+                  'Administrar usuarios del sistema',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
                 ElevatedButton.icon(
                   onPressed: nuevoUsuario,
                   icon: const Icon(Icons.person_add),
                   label: const Text('Nuevo Usuario'),
                   style: ElevatedButton.styleFrom(
-                    //color de fondo
-                    backgroundColor:
-                        Colors.blueAccent, // Usar el color principal del tema
-                    foregroundColor:
-                        Colors.white, // Color del texto y del icono
-                    //bordes redondeados
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10), // Radio de 10
+                      borderRadius: BorderRadius.circular(10),
                     ),
-
-                    //relleno
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 15,
                     ),
-
-                    //sombra
                     elevation: 5,
                   ),
                 ),
@@ -436,13 +461,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32.0),
-          child: Column(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Inicializando Firebase...'),
-            ],
-          ),
+          child: CircularProgressIndicator(),
         ),
       );
     }
@@ -451,48 +470,11 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       stream: _firestore!.collection('usuarios').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error al cargar usuarios: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: CircularProgressIndicator(),
-            ),
-          );
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: Column(
-                children: [
-                  Icon(Icons.people_outline, size: 48, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No hay usuarios registrados',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return const Center(child: Text('No hay usuarios registrados'));
         }
 
         return Table(
@@ -529,10 +511,12 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit, size: 20),
                           onPressed: () => editarUsuario(userId, data),
+                          tooltip: 'Editar',
                         ),
                         IconButton(
                           icon: const Icon(
@@ -544,6 +528,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                             userId,
                             data['nombre'] ?? 'Usuario',
                           ),
+                          tooltip: 'Eliminar',
                         ),
                       ],
                     ),
