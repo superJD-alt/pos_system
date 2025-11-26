@@ -1,9 +1,35 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ← Importación necesaria
 import 'mesa_state.dart';
 
-class ViewTable extends StatelessWidget {
+class ViewTable extends StatefulWidget {
   const ViewTable({super.key});
+
+  @override
+  State<ViewTable> createState() => _ViewTableState();
+}
+
+class _ViewTableState extends State<ViewTable> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,51 +47,51 @@ class ViewTable extends StatelessWidget {
         children: [
           //mesa 1 (2 personas)
           Positioned(
-            left: screenWidth * 0.05,
-            top: screenHeight * 0.08,
+            left: screenWidth * 0.59,
+            top: screenHeight * 0.38,
             child: const MesaBase(
               cantidadPersonas: 2,
               ancho: 80,
               alto: 80,
-              numeroMesa: 1,
+              numeroMesa: 4,
             ),
           ),
           //mesa 2 (2 personas)
           Positioned(
-            left: screenWidth * 0.20,
+            left: screenWidth * 0.59,
             top: screenHeight * 0.08,
             child: const MesaBase(
               cantidadPersonas: 2,
               ancho: 80,
               alto: 80,
-              numeroMesa: 2,
+              numeroMesa: 3,
             ),
           ),
           // mesa 3 (4 personas)
           Positioned(
-            left: screenWidth * 0.05,
-            top: screenHeight * 0.33,
+            left: screenWidth * 0.70,
+            top: screenHeight * 0.59,
             child: const MesaBase(
               cantidadPersonas: 4,
-              ancho: 100,
-              alto: 100,
-              numeroMesa: 3,
+              ancho: 200,
+              alto: 80,
+              numeroMesa: 2,
             ),
           ),
           //mesa 4 (4 personas)
           Positioned(
-            left: screenWidth * 0.28,
+            left: screenWidth * 0.35,
             top: screenHeight * 0.33,
             child: const MesaBase(
               cantidadPersonas: 4,
-              ancho: 100,
-              alto: 100,
-              numeroMesa: 4,
+              ancho: 150,
+              alto: 80,
+              numeroMesa: 6,
             ),
           ),
           //mesa 5 (6 personas)
           Positioned(
-            left: screenWidth * 0.40,
+            left: screenWidth * 0.35,
             top: screenHeight * 0.08,
             child: const MesaBase(
               cantidadPersonas: 6,
@@ -76,41 +102,19 @@ class ViewTable extends StatelessWidget {
           ),
           //mesa 6 (6 personas)
           Positioned(
-            left: screenWidth * 0.69,
-            top: screenHeight * 0.08,
+            left: screenWidth * 0.72,
+            top: screenHeight * 0.18,
             child: const MesaBase(
               cantidadPersonas: 6,
               ancho: 160,
               alto: 80,
-              numeroMesa: 6,
+              numeroMesa: 1,
             ),
           ),
           //mesa 7 (8 personas)
           Positioned(
-            left: screenWidth * 0.55,
-            top: screenHeight * 0.30,
-            child: const MesaBase(
-              cantidadPersonas: 8,
-              ancho: 200,
-              alto: 80,
-              numeroMesa: 7,
-            ),
-          ),
-          //mesa 8 (8 personas)
-          Positioned(
-            left: screenWidth * 0.38,
-            top: screenHeight * 0.58,
-            child: const MesaBase(
-              cantidadPersonas: 8,
-              ancho: 200,
-              alto: 80,
-              numeroMesa: 8,
-            ),
-          ),
-          //mesa 9 (8 personas)
-          Positioned(
-            left: screenWidth * 0.71,
-            top: screenHeight * 0.58,
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.33,
             child: const MesaBase(
               cantidadPersonas: 8,
               ancho: 200,
@@ -118,15 +122,37 @@ class ViewTable extends StatelessWidget {
               numeroMesa: 9,
             ),
           ),
+          //mesa 8 (8 personas)
+          Positioned(
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.58,
+            child: const MesaBase(
+              cantidadPersonas: 8,
+              ancho: 200,
+              alto: 80,
+              numeroMesa: 10,
+            ),
+          ),
+          //mesa 9 (8 personas)
+          Positioned(
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.08,
+            child: const MesaBase(
+              cantidadPersonas: 8,
+              ancho: 200,
+              alto: 80,
+              numeroMesa: 8,
+            ),
+          ),
           //mesa 10 (10 personas)
           Positioned(
-            left: screenWidth * 0.05,
+            left: screenWidth * 0.35,
             top: screenHeight * 0.58,
             child: const MesaBase(
               cantidadPersonas: 10,
               ancho: 260,
               alto: 90,
-              numeroMesa: 10,
+              numeroMesa: 7,
             ),
           ),
         ],
@@ -276,7 +302,7 @@ class _MesaBaseState extends State<MesaBase> {
 
   @override
   Widget build(BuildContext context) {
-    final bool esCircular = widget.cantidadPersonas <= 4;
+    final bool esCircular = widget.cantidadPersonas == 2;
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
@@ -305,7 +331,7 @@ class _MesaBaseState extends State<MesaBase> {
             decoration: BoxDecoration(
               // VERDE = disponible, ROJO = ocupada
               color: estaOcupada ? Colors.red : Colors.green,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(40),
               boxShadow: [
                 BoxShadow(
                   color: estaOcupada

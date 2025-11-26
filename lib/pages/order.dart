@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 import 'package:pos_system/pages/pdf_generator.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
+import 'package:pos_system/models/auth_dialog.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -369,6 +370,7 @@ class _OrderPageState extends State<OrderPage> {
             ),
             const Spacer(),
             ElevatedButton.icon(
+              //// boton para agregar un platillo o bebida personalizado
               onPressed: () {},
               icon: const Icon(Icons.menu, size: 30),
               label: const Text(''),
@@ -696,6 +698,247 @@ class _OrderPageState extends State<OrderPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _cancelarPedidoConAutorizacion() async {
+    // 1. Validar que haya un producto seleccionado
+    if (productoSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Selecciona un producto primero'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final bool estaEnviado = productoSeleccionado!['enviado'] == true;
+
+    // 2. Si el producto ya fue enviado, requiere autorización
+    if (estaEnviado) {
+      // Mostrar diálogo de autorización
+      final resultado = await showDialog<Map<String, dynamic>?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AuthDialog(
+          titulo: 'Cancelar pedido enviado',
+          mensaje:
+              'Este producto ya fue enviado a cocina/barra. Se requiere autorización de administrador.',
+        ),
+      );
+
+      // Verificar si se autorizó
+      if (resultado == null || resultado['autorizado'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Cancelación no autorizada'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return; // Usuario canceló o falló la autenticación
+      }
+
+      // Obtener nombre del admin que autorizó
+      final String adminNombre = resultado['adminNombre'] ?? 'Administrador';
+      print('✅ Cancelación autorizada por: $adminNombre');
+    }
+
+    // 3. Mostrar confirmación final
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Text('Confirmar cancelación'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '¿Está seguro que desea cancelar este producto?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        estaEnviado ? Icons.check_circle : Icons.pending,
+                        color: estaEnviado ? Colors.green : Colors.orange,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        estaEnviado ? 'Enviado a cocina/barra' : 'No enviado',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: estaEnviado ? Colors.green : Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  Text(
+                    productoSeleccionado!['nombre'],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Cantidad: ${productoSeleccionado!['cantidad']}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    'Precio: \$${productoSeleccionado!['precio'].toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    'Total: \$${productoSeleccionado!['total'].toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  if ((productoSeleccionado!['nota'] ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'Nota: ${productoSeleccionado!['nota']}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (estaEnviado) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange, width: 1.5),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '⚠️ Este producto ya fue enviado a cocina/barra',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, mantener'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sí, cancelar producto'),
+          ),
+        ],
+      ),
+    );
+
+    // 4. Si NO confirmó, salir
+    if (confirmar != true) {
+      return;
+    }
+
+    // 5. ELIMINAR EL PRODUCTO
+    final nombreProducto = productoSeleccionado!['nombre'];
+    final cantidadProducto = productoSeleccionado!['cantidad'];
+    final totalProducto = productoSeleccionado!['total'];
+
+    setState(() {
+      // Remover de la lista de órdenes
+      ordenes.remove(productoSeleccionado);
+
+      // Limpiar selección
+      productoSeleccionado = null;
+
+      // Recalcular totales
+      _recalcularTotales();
+    });
+
+    // 6. Guardar cambios
+    _guardarPedidosLocales();
+
+    // 7. Mostrar confirmación de éxito
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    estaEnviado
+                        ? '✓ Pedido enviado cancelado'
+                        : '✓ Pedido cancelado',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  Text(
+                    '$cantidadProducto x $nombreProducto (\$${totalProducto.toStringAsFixed(2)})',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    print('✅ Producto cancelado: $nombreProducto (Enviado: $estaEnviado)');
   }
 
   // ✅ MEJORADO: Divisores de bebidas más atractivos
@@ -1097,7 +1340,11 @@ class _OrderPageState extends State<OrderPage> {
                           const NeverScrollableScrollPhysics(), // Mantener sin scroll interno
                       children: [
                         _botonAccion(Icons.local_offer, "NOTA", _agregarNota),
-                        _botonAccion(Icons.cancel, "CANCELAR", () {}),
+                        _botonAccion(
+                          Icons.cancel,
+                          "CANCELAR",
+                          _cancelarPedidoConAutorizacion,
+                        ),
                         _botonAccion(
                           Icons.access_time,
                           "TIEMPOS",

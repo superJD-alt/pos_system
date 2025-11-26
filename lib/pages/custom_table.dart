@@ -2,9 +2,49 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:pos_system/pages/order.dart';
 import 'mesa_state.dart';
+import 'package:flutter/services.dart';
 
-class CustomTable extends StatelessWidget {
+class CustomTable extends StatefulWidget {
   const CustomTable({super.key});
+
+  @override
+  State<CustomTable> createState() => _CustomTableState();
+}
+
+class _CustomTableState extends State<CustomTable> {
+  @override
+  void initState() {
+    super.initState();
+    // Bloquear orientación a vertical solo en esta pantalla
+    print('🔒 Bloqueando orientación vertical');
+    _setOrientation([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    // Restaurar todas las orientaciones al salir de esta pantalla
+    print('🔓 Liberando todas las orientaciones');
+    _setOrientation([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    super.dispose();
+  }
+
+  Future<void> _setOrientation(List<DeviceOrientation> orientations) async {
+    try {
+      await SystemChrome.setPreferredOrientations(orientations);
+      print('✅ Orientación cambiada exitosamente');
+    } catch (e) {
+      print('❌ Error al cambiar orientación: $e');
+      debugPrint('No se pudo cambiar orientación: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,112 +58,112 @@ class CustomTable extends StatelessWidget {
         children: [
           //mesa 1 (2 personas)
           Positioned(
-            left: screenWidth * 0.05,
-            top: screenHeight * 0.08,
+            left: screenWidth * 0.59,
+            top: screenHeight * 0.38,
             child: const MesaBase(
               cantidadPersonas: 2,
               ancho: 80,
               alto: 80,
-              numeroMesa: 1,
+              numeroMesa: 4,
             ),
           ),
           //mesa 2 (2 personas)
           Positioned(
-            left: screenWidth * 0.20,
+            left: screenWidth * 0.59,
             top: screenHeight * 0.08,
             child: const MesaBase(
               cantidadPersonas: 2,
               ancho: 80,
               alto: 80,
-              numeroMesa: 2,
+              numeroMesa: 3,
             ),
           ),
           // mesa 3 (4 personas)
           Positioned(
-            left: screenWidth * 0.05,
-            top: screenHeight * 0.33,
+            left: screenWidth * 0.75,
+            top: screenHeight * 0.59,
             child: const MesaBase(
               cantidadPersonas: 4,
               ancho: 100,
               alto: 100,
-              numeroMesa: 3,
+              numeroMesa: 2,
             ),
           ),
           //mesa 4 (4 personas)
           Positioned(
-            left: screenWidth * 0.28,
+            left: screenWidth * 0.38,
             top: screenHeight * 0.33,
             child: const MesaBase(
               cantidadPersonas: 4,
               ancho: 100,
               alto: 100,
-              numeroMesa: 4,
+              numeroMesa: 6,
             ),
           ),
           //mesa 5 (6 personas)
           Positioned(
-            left: screenWidth * 0.40,
+            left: screenWidth * 0.38,
             top: screenHeight * 0.08,
             child: const MesaBase(
-              cantidadPersonas: 6,
-              ancho: 160,
-              alto: 80,
+              cantidadPersonas: 4,
+              ancho: 100,
+              alto: 100,
               numeroMesa: 5,
             ),
           ),
           //mesa 6 (6 personas)
           Positioned(
-            left: screenWidth * 0.69,
-            top: screenHeight * 0.08,
+            left: screenWidth * 0.72,
+            top: screenHeight * 0.18,
             child: const MesaBase(
               cantidadPersonas: 6,
               ancho: 160,
               alto: 80,
-              numeroMesa: 6,
+              numeroMesa: 1,
             ),
           ),
           //mesa 7 (8 personas)
           Positioned(
-            left: screenWidth * 0.55,
-            top: screenHeight * 0.30,
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.33,
             child: const MesaBase(
-              cantidadPersonas: 8,
-              ancho: 200,
-              alto: 80,
-              numeroMesa: 7,
-            ),
-          ),
-          //mesa 8 (8 personas)
-          Positioned(
-            left: screenWidth * 0.38,
-            top: screenHeight * 0.58,
-            child: const MesaBase(
-              cantidadPersonas: 8,
-              ancho: 200,
-              alto: 80,
-              numeroMesa: 8,
-            ),
-          ),
-          //mesa 9 (8 personas)
-          Positioned(
-            left: screenWidth * 0.71,
-            top: screenHeight * 0.58,
-            child: const MesaBase(
-              cantidadPersonas: 8,
+              cantidadPersonas: 6,
               ancho: 200,
               alto: 80,
               numeroMesa: 9,
             ),
           ),
+          //mesa 8 (8 personas)
+          Positioned(
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.58,
+            child: const MesaBase(
+              cantidadPersonas: 6,
+              ancho: 200,
+              alto: 80,
+              numeroMesa: 10,
+            ),
+          ),
+          //mesa 9 (8 personas)
+          Positioned(
+            left: screenWidth * 0.06,
+            top: screenHeight * 0.08,
+            child: const MesaBase(
+              cantidadPersonas: 6,
+              ancho: 200,
+              alto: 80,
+              numeroMesa: 8,
+            ),
+          ),
           //mesa 10 (10 personas)
           Positioned(
-            left: screenWidth * 0.05,
+            left: screenWidth * 0.35,
             top: screenHeight * 0.58,
             child: const MesaBase(
               cantidadPersonas: 10,
               ancho: 260,
               alto: 90,
-              numeroMesa: 10,
+              numeroMesa: 7,
             ),
           ),
         ],
@@ -318,7 +358,7 @@ class _MesaBaseState extends State<MesaBase> {
 
   @override
   Widget build(BuildContext context) {
-    final bool esCircular = widget.cantidadPersonas <= 4;
+    final bool esCircular = widget.cantidadPersonas == 2;
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
@@ -347,7 +387,7 @@ class _MesaBaseState extends State<MesaBase> {
             decoration: BoxDecoration(
               // VERDE = disponible, ROJO = ocupada
               color: estaOcupada ? Colors.red : Colors.green,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(40),
             ),
             child: Center(
               child: Column(
@@ -399,10 +439,10 @@ class _MesaBaseState extends State<MesaBase> {
     List<Widget> comensalesWidgets = [];
 
     int personasPorLadoLargo = 0;
-    if (widget.cantidadPersonas == 6)
+    if (widget.cantidadPersonas == 4)
+      personasPorLadoLargo = 1;
+    else if (widget.cantidadPersonas == 6)
       personasPorLadoLargo = 2;
-    else if (widget.cantidadPersonas == 8)
-      personasPorLadoLargo = 3;
     else if (widget.cantidadPersonas == 10)
       personasPorLadoLargo = 4;
 
