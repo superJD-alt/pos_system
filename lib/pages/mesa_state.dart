@@ -173,4 +173,89 @@ class MesaState extends ChangeNotifier {
       'ventaTotal': ventaTotal,
     };
   }
+
+  void eliminarProductoEnviado(
+    int numeroMesa,
+    String nombreProducto,
+    int cantidad,
+  ) {
+    print('🔍 Buscando producto para eliminar:');
+    print('   Mesa: $numeroMesa');
+    print('   Producto: $nombreProducto');
+    print('   Cantidad: $cantidad');
+
+    // Verificar si la mesa tiene pedidos enviados
+    if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) {
+      print('⚠️ No hay pedidos enviados para la mesa $numeroMesa');
+      return;
+    }
+
+    List<Map<String, dynamic>> pedidos = _pedidosEnviadosPorMesa[numeroMesa]!;
+    print('📋 Total de pedidos enviados: ${pedidos.length}');
+
+    bool productoEliminado = false;
+
+    // Recorrer cada pedido
+    for (int i = 0; i < pedidos.length; i++) {
+      var pedido = pedidos[i];
+
+      if (pedido['alimentos'] != null) {
+        List<dynamic> alimentos = List.from(pedido['alimentos']);
+        int alimentosAntes = alimentos.length;
+
+        print('   📦 Pedido $i - Alimentos antes: $alimentosAntes');
+
+        // Buscar y eliminar el producto
+        alimentos.removeWhere((alimento) {
+          bool coincide =
+              alimento['nombre'] == nombreProducto &&
+              alimento['cantidad'] == cantidad;
+
+          if (coincide) {
+            print(
+              '   🗑️ ¡ENCONTRADO! Eliminando: ${alimento['nombre']} (${alimento['cantidad']})',
+            );
+            productoEliminado = true;
+          }
+
+          return coincide;
+        });
+
+        print('   📦 Pedido $i - Alimentos después: ${alimentos.length}');
+
+        // Actualizar la lista de alimentos en el pedido
+        pedido['alimentos'] = alimentos;
+      }
+    }
+
+    // Eliminar pedidos que quedaron sin alimentos
+    int pedidosAntes = pedidos.length;
+    pedidos.removeWhere(
+      (pedido) =>
+          pedido['alimentos'] == null || (pedido['alimentos'] as List).isEmpty,
+    );
+
+    if (pedidos.length < pedidosAntes) {
+      print('🧹 Se eliminaron ${pedidosAntes - pedidos.length} pedidos vacíos');
+    }
+
+    // Actualizar el mapa
+    if (pedidos.isEmpty) {
+      _pedidosEnviadosPorMesa.remove(numeroMesa);
+      print(
+        '🧹 Todos los pedidos enviados fueron eliminados de la mesa $numeroMesa',
+      );
+    } else {
+      _pedidosEnviadosPorMesa[numeroMesa] = pedidos;
+      print('💾 Pedidos actualizados: ${pedidos.length} pedidos restantes');
+    }
+
+    if (productoEliminado) {
+      notifyListeners();
+      print('✅ Producto eliminado exitosamente y listeners notificados');
+    } else {
+      print('⚠️ No se encontró el producto en pedidos enviados');
+      print('   Verifica que el nombre y cantidad sean exactos');
+    }
+  }
 }

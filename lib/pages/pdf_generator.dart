@@ -7,24 +7,37 @@ import '../models/cuenta_cerrada.dart'; // Ajusta la ruta a tu modelo
 
 Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
   final pdf = pw.Document();
-  // Formateador de moneda para pesos mexicanos
   final formatCurrency = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+
+  // 🎯 CARGAR EL SELLO/LOGO DE LA EMPRESA DESDE ASSETS
+  final logoImage = await rootBundle.load('assets/images/icon_pos2.png');
+  final logoBytes = logoImage.buffer.asUint8List();
 
   pdf.addPage(
     pw.Page(
       pageFormat: const PdfPageFormat(
-        80 * PdfPageFormat.mm, // Ancho estándar de ticket de 80mm
-        double.infinity, // Altura infinita para autoajustar
-        marginAll: 4 * PdfPageFormat.mm, // Márgenes reducidos
+        80 * PdfPageFormat.mm,
+        double.infinity,
+        marginAll: 4 * PdfPageFormat.mm,
       ),
       build: (pw.Context context) {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            // 🎯 SELLO/LOGO DE LA EMPRESA EN LA PARTE SUPERIOR
+            pw.Center(
+              child: pw.Image(
+                pw.MemoryImage(logoBytes),
+                width: 90, // Ajusta el tamaño según tu necesidad
+                height: 90,
+              ),
+            ),
+            pw.SizedBox(height: 5),
+
             // --- Encabezado ---
             pw.Center(
               child: pw.Text(
-                'NOMBRE DE TU RESTAURANTE',
+                'PARRILLA VILLA',
                 style: pw.TextStyle(
                   fontSize: 10,
                   fontWeight: pw.FontWeight.bold,
@@ -33,11 +46,28 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
             ),
             pw.Center(
               child: pw.Text(
-                'DIRECCIÓN O ESLOGAN',
+                'Emiliano Zapata 57, Centro, 40000',
                 style: const pw.TextStyle(fontSize: 8),
               ),
             ),
-            pw.SizedBox(height: 5),
+            pw.Center(
+              child: pw.Text(
+                'Iguala de la Independencia, Gro.',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            ),
+            pw.Center(
+              child: pw.Text('México', style: const pw.TextStyle(fontSize: 8)),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Center(
+              child: pw.Text(
+                'RFC: FOME940127132',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            ),
+
+            pw.Divider(thickness: 0.5),
 
             // --- Detalles de la Venta ---
             pw.Text(
@@ -119,7 +149,7 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
                         ),
                       ),
                       pw.Container(
-                        width: 70, // Ajusta el ancho para el nombre
+                        width: 70,
                         child: pw.Text(
                           nombre,
                           style: const pw.TextStyle(fontSize: 8),
@@ -150,7 +180,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
                       ),
                     ],
                   ),
-                  // Nota del producto (si existe)
                   if (item.containsKey('nota') &&
                       (item['nota'] as String).isNotEmpty)
                     pw.Padding(
@@ -174,8 +203,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
-                  // No tienes subtotal e IVA explícitos, usamos el total directamente
-                  // Si tu totalCuenta ya incluye el IVA:
                   pw.Text(
                     'TOTAL: ${formatCurrency.format(cuenta.totalCuenta)}',
                     style: pw.TextStyle(
@@ -199,12 +226,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
               ),
             ),
             pw.SizedBox(height: 10),
-            pw.Center(
-              child: pw.Text(
-                'El ticket promedio fue de ${formatCurrency.format(cuenta.ticketPromedio)} por comensal.',
-                style: const pw.TextStyle(fontSize: 7),
-              ),
-            ),
           ],
         );
       },

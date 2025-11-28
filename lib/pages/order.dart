@@ -62,7 +62,6 @@ class _OrderPageState extends State<OrderPage> {
     _cargarProductosDesdeFirestore(); //cargar productos de la base de datos
   }
 
-  // ✅ NUEVO: Cargar productos con tipo (platillo/bebida)
   Future<void> _cargarProductosDesdeFirestore() async {
     try {
       setState(() => cargandoProductos = true);
@@ -203,16 +202,32 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   void _cargarPedidosExistentes() {
+    print('\n╔════════════════════════════════════════╗');
+    print(
+      '║  🔄 CARGANDO PEDIDOS DE MESA ${widget.numeroMesa.toString().padLeft(2)}     ║',
+    );
+    print('╚════════════════════════════════════════╝');
+
     setState(() {
+      // Limpiar completamente
       ordenes.clear();
+      productoSeleccionado = null;
 
       // 1. Cargar pedidos ENVIADOS a cocina (los que tienen mesero, fecha, etc)
       final pedidosEnviados = mesaState.obtenerPedidosEnviados(
         widget.numeroMesa,
       );
-      for (var pedido in pedidosEnviados) {
+      print('📨 Pedidos ENVIADOS encontrados: ${pedidosEnviados.length}');
+
+      for (int i = 0; i < pedidosEnviados.length; i++) {
+        var pedido = pedidosEnviados[i];
         final alimentos = pedido["alimentos"] ?? [];
+        print('   📦 Pedido $i tiene ${alimentos.length} alimento(s):');
+
         for (var alimento in alimentos) {
+          print(
+            '      • ${alimento['nombre']} x${alimento['cantidad']} (Enviado ✓)',
+          );
           ordenes.add({
             "nombre": alimento['nombre'],
             "precio": alimento['precio'],
@@ -228,9 +243,28 @@ class _OrderPageState extends State<OrderPage> {
 
       // 2. Cargar pedidos LOCALES (los que aún no se enviaron)
       final pedidosLocales = mesaState.obtenerPedidos(widget.numeroMesa);
+      print('📋 Pedidos LOCALES encontrados: ${pedidosLocales.length}');
+
+      for (var pedido in pedidosLocales) {
+        print('   • ${pedido['nombre']} x${pedido['cantidad']} (No enviado /)');
+      }
+
       ordenes.addAll(List.from(pedidosLocales));
 
+      print('─────────────────────────────────────────');
+      print('✅ TOTAL en lista ordenes: ${ordenes.length}');
+      print(
+        '   - Enviados: ${ordenes.where((o) => o['enviado'] == true).length}',
+      );
+      print(
+        '   - No enviados: ${ordenes.where((o) => o['enviado'] != true).length}',
+      );
+
       _recalcularTotales();
+
+      print('💰 Total items: $totalItems');
+      print('💵 Total general: \$${totalGeneral.toStringAsFixed(2)}');
+      print('╚════════════════════════════════════════╝\n');
     });
   }
 
@@ -370,11 +404,47 @@ class _OrderPageState extends State<OrderPage> {
             ),
             const Spacer(),
             ElevatedButton.icon(
-              //// boton para agregar un platillo o bebida personalizado
-              onPressed: () {},
-              icon: const Icon(Icons.menu, size: 30),
-              label: const Text(''),
-              style: _botonEstilo(minWidth: 150, minHeight: 60),
+              onPressed: _agregarProductoPersonalizado,
+
+              // 1. Icono y Color (más visible)
+              icon: const Icon(
+                Icons.add_circle_rounded,
+                size: 28, // Tamaño del icono ajustado
+                // Puedes darle un color diferente al color principal si deseas:
+                // color: Colors.white,
+              ),
+
+              // 2. Etiqueta (con texto claro y en MAYÚSCULAS)
+              label: const Text(
+                'AGREGAR PRODUCTO',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+
+              // 3. Estilo del Botón (Shape, Color y Dimensiones)
+              style: ElevatedButton.styleFrom(
+                // Color principal que lo hace destacar (ej. un color primario o acento)
+                backgroundColor: Colors
+                    .blue, // ¡Cambia 'Colors.teal' por el color que prefieras!
+                foregroundColor: Colors.white, // Color del texto y el icono
+                // Forma y Borde Redondeado
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    15,
+                  ), // Un radio más notorio
+                ),
+
+                // Padding Interno (para que se vea más grande y con aire)
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 15,
+                ),
+
+                // Elevación (opcional: para darle más profundidad)
+                elevation: 8,
+
+                // Sobreescribimos las dimensiones mínimas si es necesario, pero el padding ya ayuda
+                minimumSize: const Size(180, 60),
+              ),
             ),
           ],
         ),
@@ -715,9 +785,13 @@ class _OrderPageState extends State<OrderPage> {
 
     final bool estaEnviado = productoSeleccionado!['enviado'] == true;
 
+    // Guardar datos del producto ANTES de cualquier operación
+    final nombreProducto = productoSeleccionado!['nombre'] as String;
+    final cantidadProducto = productoSeleccionado!['cantidad'] as int;
+    final totalProducto = productoSeleccionado!['total'] as double;
+
     // 2. Si el producto ya fue enviado, requiere autorización
     if (estaEnviado) {
-      // Mostrar diálogo de autorización
       final resultado = await showDialog<Map<String, dynamic>?>(
         context: context,
         barrierDismissible: false,
@@ -728,7 +802,6 @@ class _OrderPageState extends State<OrderPage> {
         ),
       );
 
-      // Verificar si se autorizó
       if (resultado == null || resultado['autorizado'] != true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -737,10 +810,9 @@ class _OrderPageState extends State<OrderPage> {
             duration: Duration(seconds: 2),
           ),
         );
-        return; // Usuario canceló o falló la autenticación
+        return;
       }
 
-      // Obtener nombre del admin que autorizó
       final String adminNombre = resultado['adminNombre'] ?? 'Administrador';
       print('✅ Cancelación autorizada por: $adminNombre');
     }
@@ -795,7 +867,7 @@ class _OrderPageState extends State<OrderPage> {
                   ),
                   const Divider(),
                   Text(
-                    productoSeleccionado!['nombre'],
+                    nombreProducto,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -803,32 +875,17 @@ class _OrderPageState extends State<OrderPage> {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    'Cantidad: ${productoSeleccionado!['cantidad']}',
+                    'Cantidad: $cantidadProducto',
                     style: const TextStyle(fontSize: 14),
                   ),
                   Text(
-                    'Precio: \$${productoSeleccionado!['precio'].toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  Text(
-                    'Total: \$${productoSeleccionado!['total'].toStringAsFixed(2)}',
+                    'Total: \$${totalProducto.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
                     ),
                   ),
-                  if ((productoSeleccionado!['nota'] ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      'Nota: ${productoSeleccionado!['nota']}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -878,19 +935,33 @@ class _OrderPageState extends State<OrderPage> {
       ),
     );
 
-    // 4. Si NO confirmó, salir
     if (confirmar != true) {
       return;
     }
 
-    // 5. ELIMINAR EL PRODUCTO
-    final nombreProducto = productoSeleccionado!['nombre'];
-    final cantidadProducto = productoSeleccionado!['cantidad'];
-    final totalProducto = productoSeleccionado!['total'];
+    print('\n══════════════════════════════════════════');
+    print('🔥 INICIANDO CANCELACIÓN DE PRODUCTO');
+    print('══════════════════════════════════════════');
+    print('📝 Producto: $nombreProducto');
+    print('🔢 Cantidad: $cantidadProducto');
+    print('📨 Enviado: $estaEnviado');
+    print('🏠 Mesa: ${widget.numeroMesa}');
 
+    // 4. ELIMINAR DEL ESTADO LOCAL PRIMERO
     setState(() {
-      // Remover de la lista de órdenes
-      ordenes.remove(productoSeleccionado);
+      print('\n📋 Estado ANTES de eliminar:');
+      print('   Total órdenes: ${ordenes.length}');
+
+      // Eliminar de la lista local
+      ordenes.removeWhere(
+        (item) =>
+            item['nombre'] == nombreProducto &&
+            item['cantidad'] == cantidadProducto &&
+            item['enviado'] == estaEnviado,
+      );
+
+      print('📋 Estado DESPUÉS de eliminar:');
+      print('   Total órdenes: ${ordenes.length}');
 
       // Limpiar selección
       productoSeleccionado = null;
@@ -899,46 +970,72 @@ class _OrderPageState extends State<OrderPage> {
       _recalcularTotales();
     });
 
-    // 6. Guardar cambios
+    // 5. SI ERA ENVIADO, ELIMINAR DE MESASTATE
+    if (estaEnviado) {
+      print('\n🗑️ Eliminando de MesaState...');
+      mesaState.eliminarProductoEnviado(
+        widget.numeroMesa,
+        nombreProducto,
+        cantidadProducto,
+      );
+
+      // ⏳ Dar tiempo para que notifyListeners() se propague
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    // 6. Guardar cambios en pedidos locales
+    print('\n💾 Guardando pedidos locales...');
     _guardarPedidosLocales();
 
-    // 7. Mostrar confirmación de éxito
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    estaEnviado
-                        ? '✓ Pedido enviado cancelado'
-                        : '✓ Pedido cancelado',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  Text(
-                    '$cantidadProducto x $nombreProducto (\$${totalProducto.toStringAsFixed(2)})',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    // 7. FORZAR RECARGA COMPLETA
+    print('\n🔄 Forzando recarga completa...');
+    _cargarPedidosExistentes();
 
-    print('✅ Producto cancelado: $nombreProducto (Enviado: $estaEnviado)');
+    // 8. Verificar resultado
+    print('\n✅ Verificación final:');
+    print('   Total órdenes después de recargar: ${ordenes.length}');
+    print(
+      '   Pedidos enviados en MesaState: ${mesaState.obtenerPedidosEnviados(widget.numeroMesa).length}',
+    );
+    print('══════════════════════════════════════════\n');
+
+    // 9. Mostrar confirmación de éxito
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      estaEnviado
+                          ? '✓ Pedido enviado cancelado'
+                          : '✓ Pedido cancelado',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '$cantidadProducto x $nombreProducto (\$${totalProducto.toStringAsFixed(2)})',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // ✅ MEJORADO: Divisores de bebidas más atractivos
@@ -1592,6 +1689,360 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  /// Método para agregar un producto personalizado que no está en el menú
+  void _agregarProductoPersonalizado() {
+    // Controladores para los campos del formulario
+    final TextEditingController nombreController = TextEditingController();
+    final TextEditingController precioController = TextEditingController();
+    final TextEditingController cantidadController = TextEditingController(
+      text: '1',
+    );
+    final TextEditingController notaController = TextEditingController();
+
+    // Variable para mostrar el total calculado
+    double totalCalculado = 0.0;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Función para calcular el total
+            void calcularTotal() {
+              final precio = double.tryParse(precioController.text) ?? 0.0;
+              final cantidad = int.tryParse(cantidadController.text) ?? 0;
+              setDialogState(() {
+                totalCalculado = precio * cantidad;
+              });
+            }
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.add_shopping_cart,
+                    color: Colors.blue.shade700,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Agregar Producto Personalizado',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Container(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Mensaje informativo
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Usa este formulario para productos que no están en el menú',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Campo: Nombre del producto
+                      TextField(
+                        controller: nombreController,
+                        decoration: InputDecoration(
+                          labelText: 'Nombre del producto *',
+                          hintText: 'Ej: Producto especial',
+                          prefixIcon: const Icon(Icons.restaurant_menu),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        autofocus: true,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Fila: Precio y Cantidad
+                      Row(
+                        children: [
+                          // Campo: Precio
+                          Expanded(
+                            child: TextField(
+                              controller: precioController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: InputDecoration(
+                                labelText: 'Precio *',
+                                hintText: '0.00',
+                                prefixIcon: const Icon(Icons.attach_money),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              onChanged: (value) => calcularTotal(),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // Campo: Cantidad
+                          Expanded(
+                            child: TextField(
+                              controller: cantidadController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Cantidad *',
+                                hintText: '1',
+                                prefixIcon: const Icon(Icons.shopping_basket),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              onChanged: (value) => calcularTotal(),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Campo: Nota (opcional)
+                      TextField(
+                        controller: notaController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Nota (opcional)',
+                          hintText: 'Ej: Sin cebolla, término medio...',
+                          prefixIcon: const Icon(Icons.note),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Mostrar total calculado
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.shade400,
+                              Colors.green.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'TOTAL:',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            Text(
+                              '\$${totalCalculado.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Nota de campos requeridos
+                      const Text(
+                        '* Campos requeridos',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                // Botón Cancelar
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'CANCELAR',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+
+                // Botón Agregar
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Validaciones
+                    final nombre = nombreController.text.trim();
+                    final precioText = precioController.text.trim();
+                    final cantidadText = cantidadController.text.trim();
+
+                    if (nombre.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '❌ El nombre del producto es requerido',
+                          ),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final precio = double.tryParse(precioText);
+                    if (precio == null || precio <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('❌ Ingresa un precio válido mayor a 0'),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final cantidad = int.tryParse(cantidadText);
+                    if (cantidad == null || cantidad <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '❌ Ingresa una cantidad válida mayor a 0',
+                          ),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Cerrar el diálogo
+                    Navigator.pop(dialogContext);
+
+                    // Agregar el producto a la orden
+                    setState(() {
+                      final total = precio * cantidad;
+                      final nota = notaController.text.trim();
+
+                      final nuevoProducto = {
+                        "nombre": nombre,
+                        "precio": precio,
+                        "cantidad": cantidad,
+                        "total": total,
+                        "nota": nota,
+                        "enviado": false,
+                        "categoria": "Personalizado",
+                        "tiempo": 1,
+                      };
+
+                      ordenes.add(nuevoProducto);
+                      productoSeleccionado = nuevoProducto;
+                      _recalcularTotales();
+                    });
+
+                    // Mostrar confirmación
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.white),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '✓ $cantidad x $nombre agregado (\$${totalCalculado.toStringAsFixed(2)})',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 3),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add_circle, size: 20),
+                  label: const Text(
+                    'AGREGAR',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 4,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ✅ MEJORADO: Botones numéricos
   Widget _botonNumero(String texto, {VoidCallback? onPressed}) {
     return ElevatedButton(
@@ -1928,7 +2379,7 @@ class _OrderPageState extends State<OrderPage> {
                 // ✅ IMPORTANTE: Cerrar el diálogo PRIMERO
                 Navigator.pop(dialogContext);
 
-                // ✅ Separar productos por destino
+                // ✅ Separar productos por destino (¡Esto ya lo haces bien!)
                 final productosCocina = productosNoEnviados
                     .where((p) => !_esBarra(p))
                     .toList();
@@ -1937,7 +2388,7 @@ class _OrderPageState extends State<OrderPage> {
                     .toList();
 
                 try {
-                  // ✅ Guardar comandas en Firestore
+                  // --- 1. GUARDADO EN FIRESTORE (Ya lo haces bien) ---
                   if (productosCocina.isNotEmpty) {
                     await _guardarComandaEnFirestore(
                       id: '${numPedido}-COCINA',
@@ -1954,18 +2405,41 @@ class _OrderPageState extends State<OrderPage> {
                     );
                   }
 
-                  // ✅ Generar e imprimir ticket
-                  final String comanda = _generarComandaTicket(
-                    productos: productosNoEnviados,
-                    numMesa: numMesa,
-                    numComensales: numComensales,
-                    numPedido: numPedido,
-                    mesaState: mesaState,
-                  );
+                  // --- 2. GENERACIÓN E IMPRESIÓN DE TICKETS (EL CAMBIO CLAVE) ---
 
-                  _imprimirComanda(comanda);
+                  // ✅ A) Generar e imprimir ticket de COCINA (si hay productos)
+                  if (productosCocina.isNotEmpty) {
+                    final String comandaCocina = _generarComandaTicket(
+                      productosAImprimir:
+                          productosCocina, // 👈 SOLO productos de Cocina
+                      numMesa: numMesa,
+                      numComensales: numComensales,
+                      destino: 'Cocina', // 👈 Destino del encabezado
+                      numPedido: numPedido,
+                      mesaState: mesaState,
+                    );
+                    _imprimirComanda(
+                      comandaCocina,
+                    ); // ✅ Imprime la comanda de Cocina
+                  }
 
-                  // ✅ Actualizar estado local
+                  // ✅ B) Generar e imprimir ticket de BARRA (si hay productos)
+                  if (productosBarra.isNotEmpty) {
+                    final String comandaBarra = _generarComandaTicket(
+                      productosAImprimir:
+                          productosBarra, // 👈 SOLO productos de Barra
+                      numMesa: numMesa,
+                      numComensales: numComensales,
+                      destino: 'Barra', // 👈 Destino del encabezado
+                      numPedido: numPedido,
+                      mesaState: mesaState,
+                    );
+                    _imprimirComanda(
+                      comandaBarra,
+                    ); // ✅ Imprime la comanda de Barra
+                  }
+
+                  // --- 3. ACTUALIZAR ESTADO LOCAL (El resto sigue igual) ---
                   setState(() {
                     final alimentosEnviados = productosNoEnviados.map((item) {
                       return {
@@ -1990,7 +2464,7 @@ class _OrderPageState extends State<OrderPage> {
                     }
                   });
 
-                  // ✅ Mostrar mensaje de éxito solo si el widget sigue montado
+                  // ✅ Mostrar mensaje de éxito
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -2003,23 +2477,10 @@ class _OrderPageState extends State<OrderPage> {
                     );
                   }
                 } catch (e) {
-                  print('❌ Error al guardar comanda: $e');
-
-                  // ✅ Mostrar error solo si el widget sigue montado
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("Error al enviar comanda: $e"),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  // ... (Manejo de errores) ...
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+              // ... (Estilos del botón) ...
               child: const Text("Enviar"),
             ),
           ],
@@ -2096,14 +2557,15 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   String _generarComandaTicket({
-    required List<Map<String, dynamic>> productos,
+    // 👈 Renombramos el parámetro para ser más claro.
+    //    Si llamas a la función con SOLO productos de Cocina, esta lista será SOLO Cocina.
+    required List<Map<String, dynamic>> productosAImprimir,
     required String numMesa,
     required int numComensales,
     required String numPedido,
-    // 👈 NUEVO: Recibe el objeto mesaState para obtener el mesero
+    required String destino, // Usamos este valor para el encabezado
     required MesaState mesaState,
   }) {
-    // Obtención del mesero de forma consistente con el ticket final
     final String mesero = mesaState.meseroActual.isNotEmpty
         ? mesaState.meseroActual
         : 'Mesero Genérico';
@@ -2111,21 +2573,24 @@ class _OrderPageState extends State<OrderPage> {
     final now = DateTime.now();
     final String fechaHora = DateFormat('dd/MM/yyyy HH:mm:ss').format(now);
 
-    // 💥 Pasamos el MAPA COMPLETO a la función _esBarra para que acceda a 'categoria'
-    final productosBarra = productos.where((p) => _esBarra(p)).toList();
-    final productosCocina = productos.where((p) => !_esBarra(p)).toList();
+    // 💥 ELIMINAMOS ESTAS LÍNEAS. LA SEPARACIÓN DEBE HACERSE FUERA DEL MÉTODO.
+    // final productosBarra = productos.where((p) => _esBarra(p)).toList();
+    // final productosCocina = productos.where((p) => !_esBarra(p)).toList();
 
     final buffer = StringBuffer();
 
-    // ... el resto de la función (encabezados, etc.) ...
-
-    // --- 1. ENCABEZADO DE COMANDA ---
+    // --- 1. ENCABEZADO DE COMANDA (Completo) ---
     buffer.writeln('********************************');
     buffer.writeln('*** PUNTO DE VENTA PARRILLA VILLA  ***');
     buffer.writeln('********************************');
+
+    // ✅ Se imprime el destino para identificar el ticket
+    buffer.writeln('===== DESTINO: ${destino.toUpperCase()} =====');
+    buffer.writeln('--------------------------------');
+
+    // ✅ Toda la info de la comanda
     buffer.writeln('PEDIDO No.: $numPedido');
     buffer.writeln('MESA: $numMesa');
-    // 💥 USAMOS LA VARIABLE OBTENIDA INTERNAMENTE
     buffer.writeln('MESERO: ${mesero.toUpperCase()}');
     buffer.writeln('COMENSALES: $numComensales');
     buffer.writeln('FECHA/HORA: $fechaHora');
@@ -2145,21 +2610,14 @@ class _OrderPageState extends State<OrderPage> {
       }
     }
 
-    // --- 2. SECCIÓN COCINA ---
-    if (productosCocina.isNotEmpty) {
-      buffer.writeln('\n===== DESTINO: COCINA =====');
-      buffer.writeln('--------------------------------');
-      _formatProductos(productosCocina);
+    // --- 2. SECCIÓN DE PRODUCTOS ESPECÍFICOS ---
+    // 💥 Sustituimos las Secciones 2 y 3 por una única llamada,
+    //    usando solo la lista que se nos pasó.
+    if (productosAImprimir.isNotEmpty) {
+      _formatProductos(productosAImprimir);
     }
 
-    // --- 3. SECCIÓN BARRA ---
-    if (productosBarra.isNotEmpty) {
-      buffer.writeln('\n====== DESTINO: BARRA ======');
-      buffer.writeln('--------------------------------');
-      _formatProductos(productosBarra);
-    }
-
-    // --- 4. PIE DE PÁGINA ---
+    // --- 3. PIE DE PÁGINA ---
     buffer.writeln('\n================================');
     buffer.writeln('IMPRESO: ${DateFormat('HH:mm:ss').format(DateTime.now())}');
     buffer.writeln('********************************');

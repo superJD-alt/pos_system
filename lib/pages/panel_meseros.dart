@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pos_system/pages/view_table.dart';
 import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/resumen_turno_page.dart';
+import 'package:pos_system/pages/apartadoBotellaPage.dart';
 
 class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
@@ -238,9 +239,41 @@ class _PanelMeserosState extends State<PanelMeseros> {
             ),
           ),
 
+          // 🔹 Botón "Apartado Botellas"
+          Positioned(
+            bottom: 20, // Mismo valor que "Cerrar sesión"
+            left: 40, // Posicionamiento en el lado izquierdo
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const apartadoBotellaPage(), // <-- Sustituye esta línea
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 60,
+                  vertical: 20,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              child: const Text(
+                'Apartado Botellas',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+
           // 🔹 Botón "Cerrar sesión"
           Positioned(
-            bottom: 32,
+            bottom: 20,
             right: 32,
             child: ElevatedButton(
               onPressed: () async {
@@ -294,24 +327,4 @@ class _PanelMeserosState extends State<PanelMeseros> {
       print('Error al conectar con Firestore: $e');
     }
   }
-
-  /*
-  () async {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('⏳ Importando menú...')),
-                      );
-
-                      try {
-                        await importarMenuAFirebase();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ Menú importado correctamente'),
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('❌ Error al importar: $e')),
-                        );
-                      }
-   */
 }
