@@ -26,11 +26,7 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
           children: [
             // 🎯 SELLO/LOGO DE LA EMPRESA EN LA PARTE SUPERIOR
             pw.Center(
-              child: pw.Image(
-                pw.MemoryImage(logoBytes),
-                width: 90, // Ajusta el tamaño según tu necesidad
-                height: 90,
-              ),
+              child: pw.Image(pw.MemoryImage(logoBytes), width: 90, height: 90),
             ),
             pw.SizedBox(height: 5),
 
@@ -70,26 +66,51 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
             pw.Divider(thickness: 0.5),
 
             // --- Detalles de la Venta ---
-            pw.Text(
-              'FOLIO: ${cuenta.id.substring(0, 8)}',
-              style: const pw.TextStyle(fontSize: 8),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    'FOLIO: ${cuenta.id.substring(0, 8)}',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Text(
+                    'MESA: ${cuenta.numeroMesa}',
+                    style: const pw.TextStyle(fontSize: 8),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                ),
+              ],
             ),
-            pw.Text(
-              'MESA: ${cuenta.numeroMesa}',
-              style: const pw.TextStyle(fontSize: 8),
+            pw.SizedBox(height: 2),
+
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Expanded(
+                  child: pw.Text(
+                    'MESERO: ${cuenta.mesero}',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Text(
+                    'COMENSALES: ${cuenta.comensales}',
+                    style: const pw.TextStyle(fontSize: 8),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                ),
+              ],
             ),
-            pw.Text(
-              'MESERO: ${cuenta.mesero}',
-              style: const pw.TextStyle(fontSize: 8),
-            ),
-            pw.Text(
-              'COMENSALES: ${cuenta.comensales}',
-              style: const pw.TextStyle(fontSize: 8),
-            ),
+            pw.SizedBox(height: 2),
+
             pw.Text(
               'FECHA: ${DateFormat('dd/MM/yyyy HH:mm').format(cuenta.fechaCierre)}',
               style: const pw.TextStyle(fontSize: 8),
             ),
+
             pw.Divider(thickness: 0.5),
 
             // --- Títulos de la tabla de items ---
