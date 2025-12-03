@@ -53,6 +53,7 @@
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		41F7C661A9AF9C9BE625D3AB /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		5FC12D16DC91CD1737E35F18 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
+		6A499DCE2EDDEC3500BC117B /* Runner.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Runner.xcodeproj; path = ../Runner.xcodeproj; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
@@ -104,6 +105,13 @@
 				B27764017E12DA66D362E761 /* Pods_RunnerTests.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		6A499DD12EDFC06A00BC117B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -163,6 +171,7 @@
 				AD3B8D5D87D9CB5FCADB20B5 /* Pods-RunnerTests.debug.xcconfig */,
 				41F7C661A9AF9C9BE625D3AB /* Pods-RunnerTests.release.xcconfig */,
 				5FC12D16DC91CD1737E35F18 /* Pods-RunnerTests.profile.xcconfig */,
+				6A499DCE2EDDEC3500BC117B /* Runner.xcodeproj */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -242,6 +251,12 @@
 			mainGroup = 97C146E51CF9000F007C117D;
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 6A499DD12EDFC06A00BC117B /* Products */;
+					ProjectRef = 6A499DCE2EDDEC3500BC117B /* Runner.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,

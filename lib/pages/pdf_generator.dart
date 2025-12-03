@@ -62,6 +62,13 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
                 style: const pw.TextStyle(fontSize: 8),
               ),
             ),
+            pw.SizedBox(height: 2),
+            pw.Center(
+              child: pw.Text(
+                'Numero de celular: 733 117 4352',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            ),
 
             pw.Divider(thickness: 0.5),
 
@@ -247,6 +254,18 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
               ),
             ),
             pw.SizedBox(height: 10),
+            pw.Center(
+              child: pw.Text(
+                'Horario de atención',
+                style: const pw.TextStyle(fontSize: 6),
+              ),
+            ),
+            pw.Center(
+              child: pw.Text(
+                'Miercoles a Lunes de 1:00 PM a 10:00 PM',
+                style: const pw.TextStyle(fontSize: 6),
+              ),
+            ),
           ],
         );
       },

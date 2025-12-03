@@ -7,6 +7,7 @@ class Producto {
   final bool disponible;
   final int? gramos;
   final String? tipo;
+  final bool requiresDoneness; // Si requiere término de cocción
 
   Producto({
     required this.id,
@@ -17,6 +18,7 @@ class Producto {
     required this.disponible,
     this.gramos,
     this.tipo,
+    this.requiresDoneness = false,
   });
 
   // Crear desde Firestore

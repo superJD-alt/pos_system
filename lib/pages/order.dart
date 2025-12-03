@@ -360,11 +360,14 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   // ✅ NUEVO: Widget para el header
+  // ==================== MODIFICACIONES PARA BOTONES COMPACTOS ====================
+
+  // 1. MODIFICAR EL HEADER (hacer botones más pequeños)
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.all(2.0),
       child: Container(
-        height: 70,
+        height: 50, // ✅ Reducido de 70 a 50
         width: double.infinity,
         color: Colors.white,
         child: Row(
@@ -374,13 +377,25 @@ class _OrderPageState extends State<OrderPage> {
                 _guardarPedidosLocales();
                 Navigator.pop(context);
               },
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('ATRÁS'),
-              style: _botonEstilo(minWidth: 150, minHeight: 60),
+              icon: const Icon(
+                Icons.arrow_back,
+                size: 16,
+              ), // ✅ Icono más pequeño
+              label: const Text(
+                'ATRÁS',
+                style: TextStyle(fontSize: 12),
+              ), // ✅ Texto más pequeño
+              style: _botonEstilo(
+                minWidth: 100,
+                minHeight: 45,
+              ), // ✅ Tamaños reducidos
             ),
             const Spacer(),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ), // ✅ Padding reducido
               decoration: BoxDecoration(
                 color: Colors.blue.shade100,
                 borderRadius: BorderRadius.circular(8),
@@ -391,13 +406,15 @@ class _OrderPageState extends State<OrderPage> {
                   Text(
                     'Mesa ${widget.numeroMesa}',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 13, // ✅ Reducido de 16 a 13
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     '${widget.comensales} comensales',
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 10,
+                    ), // ✅ Reducido de 12 a 10
                   ),
                 ],
               ),
@@ -405,45 +422,32 @@ class _OrderPageState extends State<OrderPage> {
             const Spacer(),
             ElevatedButton.icon(
               onPressed: _agregarProductoPersonalizado,
-
-              // 1. Icono y Color (más visible)
               icon: const Icon(
                 Icons.add_circle_rounded,
-                size: 28, // Tamaño del icono ajustado
-                // Puedes darle un color diferente al color principal si deseas:
-                // color: Colors.white,
-              ),
-
-              // 2. Etiqueta (con texto claro y en MAYÚSCULAS)
+                size: 20,
+              ), // ✅ Reducido de 28 a 20
               label: const Text(
                 'AGREGAR PRODUCTO',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ), // ✅ Reducido de 16 a 12
               ),
-
-              // 3. Estilo del Botón (Shape, Color y Dimensiones)
               style: ElevatedButton.styleFrom(
-                // Color principal que lo hace destacar (ej. un color primario o acento)
-                backgroundColor: Colors
-                    .blue, // ¡Cambia 'Colors.teal' por el color que prefieras!
-                foregroundColor: Colors.white, // Color del texto y el icono
-                // Forma y Borde Redondeado
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    15,
-                  ), // Un radio más notorio
+                  borderRadius: BorderRadius.circular(10),
                 ),
-
-                // Padding Interno (para que se vea más grande y con aire)
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 15,
-                ),
-
-                // Elevación (opcional: para darle más profundidad)
-                elevation: 8,
-
-                // Sobreescribimos las dimensiones mínimas si es necesario, pero el padding ya ayuda
-                minimumSize: const Size(180, 60),
+                  horizontal: 16,
+                  vertical: 10,
+                ), // ✅ Padding reducido
+                elevation: 4, // ✅ Reducido de 8 a 4
+                minimumSize: const Size(
+                  140,
+                  45,
+                ), // ✅ Reducido de 180x60 a 140x45
               ),
             ),
           ],
@@ -1217,47 +1221,92 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   // ✅ NUEVO: Agregar producto desde Firestore
-  void _agregarProductoDesdeFirestore(Producto producto) {
-    setState(() {
-      final index = ordenes.indexWhere(
-        (item) => item['nombre'] == producto.nombre && item['enviado'] != true,
-      );
+  void _agregarProductoDesdeFirestore(Producto producto) async {
+    // Verificar si es un corte para solicitar el término
+    if (producto.categoria.toLowerCase() == 'cortes') {
+      final termino = await _seleccionarTerminoCoccion(producto.nombre);
+      if (termino == null) return; // Usuario canceló
 
-      int cantidad = (cantidadBuffer > 0) ? cantidadBuffer : 1;
+      setState(() {
+        int cantidad = (cantidadBuffer > 0) ? cantidadBuffer : 1;
 
-      if (index >= 0) {
-        ordenes[index]['cantidad'] += cantidad;
-        ordenes[index]['total'] =
-            ordenes[index]['cantidad'] * ordenes[index]['precio'];
-        productoSeleccionado = ordenes[index];
-      } else {
-        var nuevo = {
-          "nombre": producto.nombre,
-          "precio": producto.precio,
-          "cantidad": cantidad,
-          "total": producto.precio * cantidad,
-          "nota": "",
-          "enviado": false,
-          "productoId": producto.id,
-          "categoria": producto.categoria,
-          "tiempo": 1,
-        };
-        ordenes.add(nuevo);
-        productoSeleccionado = nuevo;
-      }
+        // Buscar si ya existe el mismo corte con el mismo término
+        final index = ordenes.indexWhere(
+          (item) =>
+              item['nombre'] == producto.nombre &&
+              item['termino'] == termino &&
+              item['enviado'] != true,
+        );
 
-      cantidadBuffer = 0;
-      _recalcularTotales();
-    });
+        if (index >= 0) {
+          ordenes[index]['cantidad'] += cantidad;
+          ordenes[index]['total'] =
+              ordenes[index]['cantidad'] * ordenes[index]['precio'];
+          productoSeleccionado = ordenes[index];
+        } else {
+          var nuevo = {
+            "nombre": producto.nombre,
+            "precio": producto.precio,
+            "cantidad": cantidad,
+            "total": producto.precio * cantidad,
+            "nota": "",
+            "enviado": false,
+            "productoId": producto.id,
+            "categoria": producto.categoria,
+            "tiempo": 1,
+            "termino": termino, // ✅ Guardar el término de cocción
+          };
+          ordenes.add(nuevo);
+          productoSeleccionado = nuevo;
+        }
+
+        cantidadBuffer = 0;
+        _recalcularTotales();
+      });
+    } else {
+      // Para productos que NO son cortes, comportamiento normal
+      setState(() {
+        final index = ordenes.indexWhere(
+          (item) =>
+              item['nombre'] == producto.nombre && item['enviado'] != true,
+        );
+
+        int cantidad = (cantidadBuffer > 0) ? cantidadBuffer : 1;
+
+        if (index >= 0) {
+          ordenes[index]['cantidad'] += cantidad;
+          ordenes[index]['total'] =
+              ordenes[index]['cantidad'] * ordenes[index]['precio'];
+          productoSeleccionado = ordenes[index];
+        } else {
+          var nuevo = {
+            "nombre": producto.nombre,
+            "precio": producto.precio,
+            "cantidad": cantidad,
+            "total": producto.precio * cantidad,
+            "nota": "",
+            "enviado": false,
+            "productoId": producto.id,
+            "categoria": producto.categoria,
+            "tiempo": 1,
+          };
+          ordenes.add(nuevo);
+          productoSeleccionado = nuevo;
+        }
+
+        cantidadBuffer = 0;
+        _recalcularTotales();
+      });
+    }
   }
 
   // ✅ Panel izquierdo con tabla de órdenes, totales y botones
   Widget _buildLeftPanel() {
     return Column(
       children: [
-        // ===== TABLA DE ORDENES =====
+        // ===== TABLA DE ORDENES (más compacta) =====
         Container(
-          height: 350,
+          height: 380, // ✅ Reducido de 350 a 280
           child: Container(
             color: Colors.grey[100],
             width: double.infinity,
@@ -1265,19 +1314,31 @@ class _OrderPageState extends State<OrderPage> {
               scrollDirection: Axis.vertical,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(Colors.grey[400]),
+                headingRowHeight: 35, // ✅ NUEVO: Altura de encabezado reducida
+                dataRowMinHeight: 30, // ✅ NUEVO: Altura mínima de fila
+                dataRowMaxHeight: 35, // ✅ NUEVO: Altura máxima de fila
+                columnSpacing: 15, // ✅ NUEVO: Espaciado entre columnas reducido
+                horizontalMargin: 8, // ✅ NUEVO: Margen horizontal reducido
                 border: TableBorder.symmetric(),
                 columns: const [
-                  DataColumn(label: Text('Cant')),
-                  DataColumn(label: Text('C')),
-                  DataColumn(label: Text('Descripción')),
-                  DataColumn(label: Text('T')),
-                  DataColumn(label: Text('Precio')),
-                  DataColumn(label: Text('Total')),
+                  DataColumn(
+                    label: Text('Cant', style: TextStyle(fontSize: 11)),
+                  ), // ✅ Texto más pequeño
+                  DataColumn(label: Text('C', style: TextStyle(fontSize: 11))),
+                  DataColumn(
+                    label: Text('Descripción', style: TextStyle(fontSize: 11)),
+                  ),
+                  DataColumn(label: Text('T', style: TextStyle(fontSize: 11))),
+                  DataColumn(
+                    label: Text('Precio', style: TextStyle(fontSize: 11)),
+                  ),
+                  DataColumn(
+                    label: Text('Total', style: TextStyle(fontSize: 11)),
+                  ),
                 ],
                 rows: ordenes.expand((item) {
                   bool seleccionado = productoSeleccionado == item;
 
-                  // Fila principal del producto
                   final mainRow = DataRow(
                     selected: seleccionado,
                     onSelectChanged: (val) {
@@ -1286,7 +1347,12 @@ class _OrderPageState extends State<OrderPage> {
                       });
                     },
                     cells: [
-                      DataCell(Text(item['cantidad'].toString())),
+                      DataCell(
+                        Text(
+                          item['cantidad'].toString(),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ), // ✅ Texto pequeño
                       DataCell(
                         SizedBox(
                           width: 10,
@@ -1300,30 +1366,42 @@ class _OrderPageState extends State<OrderPage> {
                               fontWeight: item['enviado'] == true
                                   ? FontWeight.bold
                                   : FontWeight.normal,
+                              fontSize: 11, // ✅ Texto pequeño
                             ),
                           ),
                         ),
                       ),
-                      DataCell(Text(item['nombre'])),
+                      DataCell(
+                        Text(
+                          item['nombre'],
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
                       DataCell(
                         SizedBox(
                           width: 10,
                           child: Text(
                             item['tiempo']?.toString() ?? '1',
                             textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 11),
                           ),
                         ),
                       ),
-                      DataCell(Text("\$${item['precio']}")),
+                      DataCell(
+                        Text(
+                          "\$${item['precio']}",
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
                       DataCell(
                         Text(
                           "\$${(item['precio'] * item['cantidad']).toStringAsFixed(2)}",
+                          style: const TextStyle(fontSize: 11),
                         ),
                       ),
                     ],
                   );
 
-                  // Fila extra para la nota, si existe
                   if ((item['nota'] ?? "").isNotEmpty) {
                     final noteRow = DataRow(
                       cells: [
@@ -1335,6 +1413,7 @@ class _OrderPageState extends State<OrderPage> {
                             style: const TextStyle(
                               fontStyle: FontStyle.italic,
                               color: Colors.grey,
+                              fontSize: 10, // ✅ Nota más pequeña
                             ),
                           ),
                         ),
@@ -1355,9 +1434,12 @@ class _OrderPageState extends State<OrderPage> {
 
         const SizedBox(height: 5),
 
-        // ===== CONTENEDOR TOTAL =====
+        // ===== CONTENEDOR TOTAL (más compacto) =====
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ), // ✅ Padding reducido
           child: Row(
             children: [
               Expanded(
@@ -1366,19 +1448,35 @@ class _OrderPageState extends State<OrderPage> {
                   controller: TextEditingController(
                     text: totalItems.toString(),
                   ),
+                  style: const TextStyle(fontSize: 12), // ✅ Texto más pequeño
                   decoration: const InputDecoration(
-                    labelText: 'Total de ítems',
+                    labelText: 'Total ítems',
+                    labelStyle: TextStyle(fontSize: 11), // ✅ Label más pequeño
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ), // ✅ Padding reducido
+                    isDense: true, // ✅ NUEVO: Hacer el campo más denso
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: TextField(
                   readOnly: true,
                   controller: TextEditingController(
                     text: "\$${totalGeneral.toStringAsFixed(2)}",
                   ),
-                  decoration: const InputDecoration(labelText: 'Total general'),
+                  style: const TextStyle(fontSize: 12), // ✅ Texto más pequeño
+                  decoration: const InputDecoration(
+                    labelText: 'Total general',
+                    labelStyle: TextStyle(fontSize: 11),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    isDense: true,
+                  ),
                 ),
               ),
             ],
@@ -1387,35 +1485,22 @@ class _OrderPageState extends State<OrderPage> {
 
         const SizedBox(height: 5),
 
-        //BOTONES POS-----
+        // ===== BOTONES POS (más compactos y responsivos) =====
         Expanded(
           flex: 2,
           child: Padding(
-            padding: const EdgeInsets.only(top: 8.0), // Espacio arriba
+            padding: const EdgeInsets.only(top: 4.0), // ✅ Padding reducido
             child: LayoutBuilder(
-              // 👈 Seguimos usando LayoutBuilder para obtener el ancho disponible
               builder: (context, constraints) {
-                const int crossAxisCount =
-                    4; // Queremos 4 columnas fijas para el teclado numérico
-                const double mainAxisSpacing = 8; // Espaciado vertical
-                const double crossAxisSpacing = 8; // Espaciado horizontal
+                const int crossAxisCount = 4;
+                const double mainAxisSpacing = 6; // ✅ Reducido de 8 a 6
+                const double crossAxisSpacing = 6; // ✅ Reducido de 8 a 6
 
-                // Calcular el ancho de un solo botón
-                // constraints.maxWidth es el ancho total disponible para el GridView
-                // crossAxisSpacing * (crossAxisCount - 1) es el espacio total entre columnas
                 final double itemWidth =
                     (constraints.maxWidth -
                         crossAxisSpacing * (crossAxisCount - 1)) /
                     crossAxisCount;
-
-                // Definir una altura deseada para los botones.
-                // Puedes ajustar este valor para controlar la altura visual de los botones.
-                // Por ejemplo, 50-70 píxeles es un buen rango para botones de POS.
-                const double desiredItemHeight =
-                    65.0; // 👈 AJUSTA ESTE VALOR SEGÚN TU PREFERENCIA
-
-                // Calcular el childAspectRatio (width / height)
-                // Esto hará que el alto se adapte proporcionalmente a este 'desiredItemHeight'
+                const double desiredItemHeight = 50.0; // ✅ Reducido de 65 a 50
                 final double responsiveChildAspectRatio =
                     itemWidth / desiredItemHeight;
 
@@ -1428,13 +1513,11 @@ class _OrderPageState extends State<OrderPage> {
                   child: Padding(
                     padding: const EdgeInsets.all(2),
                     child: GridView.count(
-                      crossAxisCount: crossAxisCount, // 4 columnas
+                      crossAxisCount: crossAxisCount,
                       mainAxisSpacing: mainAxisSpacing,
                       crossAxisSpacing: crossAxisSpacing,
-                      childAspectRatio:
-                          responsiveChildAspectRatio, // 👈 Relación calculada
-                      physics:
-                          const NeverScrollableScrollPhysics(), // Mantener sin scroll interno
+                      childAspectRatio: responsiveChildAspectRatio,
+                      physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _botonAccion(Icons.local_offer, "NOTA", _agregarNota),
                         _botonAccion(
@@ -1448,7 +1531,6 @@ class _OrderPageState extends State<OrderPage> {
                           _cambiarTiempo,
                         ),
                         _botonAccion(Icons.delete, "BORRAR", _eliminarProducto),
-
                         _botonAccion(
                           Icons.swap_horiz,
                           "TRANSFERIR",
@@ -1468,15 +1550,12 @@ class _OrderPageState extends State<OrderPage> {
                             }
                           },
                         ),
-
                         _botonNumero("2"),
                         _botonNumero("3"),
-
                         _botonAccion(Icons.print, "COMANDA", _enviarComanda),
                         _botonNumero("4"),
                         _botonNumero("5"),
                         _botonNumero("6"),
-
                         _botonAccion(
                           Icons.receipt_long,
                           'CUENTA',
@@ -1485,8 +1564,7 @@ class _OrderPageState extends State<OrderPage> {
                         _botonNumero("7"),
                         _botonNumero("8"),
                         _botonNumero("9"),
-
-                        const SizedBox.shrink(), // O un botón de acción para decimal/otro
+                        const SizedBox.shrink(),
                         _botonAccion(Icons.add, "+", _incrementarCantidad),
                         _botonAccion(Icons.remove, "-", _disminuirCantidad),
                         _botonNumero("0"),
@@ -1504,7 +1582,8 @@ class _OrderPageState extends State<OrderPage> {
 
   // ===================== MÉTODOS HELPER =====================
 
-  ButtonStyle _botonEstilo({double minWidth = 90, double minHeight = 30}) {
+  ButtonStyle _botonEstilo({double minWidth = 70, double minHeight = 25}) {
+    // ✅ Valores por defecto reducidos
     return ButtonStyle(
       minimumSize: WidgetStateProperty.all(Size(minWidth, minHeight)),
       backgroundColor: WidgetStateProperty.all(Colors.white),
@@ -1516,12 +1595,11 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // ✅ CORREGIDO: Botones de acción sin overflow
   Widget _botonAccion(IconData icono, String texto, VoidCallback onPressed) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ButtonStyle(
-        minimumSize: WidgetStateProperty.all(const Size(90, 30)),
+        minimumSize: WidgetStateProperty.all(const Size(60, 35)),
         backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
           if (states.contains(WidgetState.pressed)) {
             return Colors.blue.shade700;
@@ -1538,35 +1616,39 @@ class _OrderPageState extends State<OrderPage> {
           if (states.contains(WidgetState.pressed)) {
             return 1;
           }
-          return 3;
+          return 2; // ✅ Reducido de 3 a 2
         }),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+            borderRadius: BorderRadius.circular(4), // ✅ Reducido de 8 a 6
+            side: BorderSide(
+              color: Colors.grey.shade300,
+              width: 1,
+            ), // ✅ Reducido de 1.5 a 1
           ),
         ),
         padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        ), // ✅ Padding reducido
+          const EdgeInsets.symmetric(
+            horizontal: 2,
+            vertical: 4,
+          ), // ✅ Padding muy reducido
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min, // ✅ Importante: usar min
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 20), // ✅ Icono ligeramente más pequeño
-          if (texto.isNotEmpty)
-            const SizedBox(height: 2), // ✅ Espaciado reducido
+          Icon(icono, size: 16), // ✅ Reducido de 20 a 16
+          if (texto.isNotEmpty) const SizedBox(height: 2),
           if (texto.isNotEmpty)
             Flexible(
-              // ✅ Usar Flexible en lugar de FittedBox
               child: Text(
                 texto,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 15, // ✅ Fuente ligeramente más pequeña
+                  fontSize: 10, // ✅ Reducido de 15 a 10
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1592,8 +1674,8 @@ class _OrderPageState extends State<OrderPage> {
             ),
           ),
           content: SizedBox(
-            width: 500, // Ajusta el tamaño para tablet
-            height: 600, // Ajusta el tamaño
+            width: 400, // Ajusta el tamaño para tablet
+            height: 500, // Ajusta el tamaño
             child: PdfPreview(
               build: (format) => pdfBytes,
               allowPrinting: true,
@@ -1686,6 +1768,194 @@ class _OrderPageState extends State<OrderPage> {
           ),
         ),
       ),
+    );
+  }
+
+  // ✅ NUEVO: Diálogo para seleccionar término de cocción
+  Future<String?> _seleccionarTerminoCoccion(String nombreCorte) async {
+    final terminos = [
+      {'nombre': 'Azul', 'icono': Icons.ac_unit, 'color': Colors.blue},
+      {
+        'nombre': 'Sellado',
+        'icono': Icons.local_fire_department,
+        'color': Colors.orange,
+      },
+      {
+        'nombre': 'Inglés',
+        'icono': Icons.restaurant,
+        'color': Colors.red.shade300,
+      },
+      {
+        'nombre': 'Término Medio',
+        'icono': Icons.thermostat,
+        'color': Colors.pink,
+      },
+      {
+        'nombre': '3/4',
+        'icono': Icons.whatshot,
+        'color': Colors.brown.shade400,
+      },
+      {
+        'nombre': 'Bien Cocido',
+        'icono': Icons.local_fire_department,
+        'color': Colors.brown.shade700,
+      },
+    ];
+
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Encabezado
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.red.shade700, Colors.red.shade500],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.outdoor_grill,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Selecciona el Término',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              nombreCorte,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Grid de términos
+                Expanded(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1.3,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                        ),
+                    itemCount: terminos.length,
+                    itemBuilder: (context, index) {
+                      final termino = terminos[index];
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.pop(
+                            context,
+                            termino['nombre'] as String,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: termino['color'] as Color,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (termino['color'] as Color)
+                                      .withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  termino['icono'] as IconData,
+                                  size: 40,
+                                  color: termino['color'] as Color,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  termino['nombre'] as String,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: termino['color'] as Color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Botón cancelar
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'CANCELAR',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2064,7 +2334,9 @@ class _OrderPageState extends State<OrderPage> {
             });
           },
       style: ButtonStyle(
-        minimumSize: WidgetStateProperty.all(const Size(90, 30)),
+        minimumSize: WidgetStateProperty.all(
+          const Size(70, 45),
+        ), // ✅ Reducido de 90x30
         backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
           if (states.contains(WidgetState.pressed)) {
             return Colors.green.shade600;
@@ -2081,18 +2353,24 @@ class _OrderPageState extends State<OrderPage> {
           if (states.contains(WidgetState.pressed)) {
             return 1;
           }
-          return 4;
+          return 2; // ✅ Reducido de 4 a 2
         }),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: Colors.green.shade300, width: 2),
+            borderRadius: BorderRadius.circular(6), // ✅ Reducido de 8 a 6
+            side: BorderSide(
+              color: Colors.green.shade300,
+              width: 1.5,
+            ), // ✅ Reducido de 2 a 1.5
           ),
         ),
       ),
       child: Text(
         texto,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ), // ✅ Reducido de 20 a 16
       ),
     );
   }
@@ -2336,7 +2614,6 @@ class _OrderPageState extends State<OrderPage> {
     showDialog(
       context: context,
       builder: (dialogContext) {
-        // ✅ Usar dialogContext en lugar de context
         return AlertDialog(
           title: const Text("📋 Confirmar envío de comanda"),
           content: Column(
@@ -2370,16 +2647,14 @@ class _OrderPageState extends State<OrderPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext), // ✅ Usar dialogContext
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
               onPressed: () async {
-                // ✅ IMPORTANTE: Cerrar el diálogo PRIMERO
                 Navigator.pop(dialogContext);
 
-                // ✅ Separar productos por destino (¡Esto ya lo haces bien!)
+                // Separar productos por destino
                 final productosCocina = productosNoEnviados
                     .where((p) => !_esBarra(p))
                     .toList();
@@ -2388,9 +2663,9 @@ class _OrderPageState extends State<OrderPage> {
                     .toList();
 
                 try {
-                  // --- 1. GUARDADO EN FIRESTORE (Ya lo haces bien) ---
+                  // ✅ GUARDAR EN FIRESTORE (colección 'ordenesCocina')
                   if (productosCocina.isNotEmpty) {
-                    await _guardarComandaEnFirestore(
+                    await _guardarOrdenCocina(
                       id: '${numPedido}-COCINA',
                       destino: 'cocina',
                       productos: productosCocina,
@@ -2398,48 +2673,39 @@ class _OrderPageState extends State<OrderPage> {
                   }
 
                   if (productosBarra.isNotEmpty) {
-                    await _guardarComandaEnFirestore(
+                    await _guardarOrdenCocina(
                       id: '${numPedido}-BARRA',
                       destino: 'barra',
                       productos: productosBarra,
                     );
                   }
 
-                  // --- 2. GENERACIÓN E IMPRESIÓN DE TICKETS (EL CAMBIO CLAVE) ---
-
-                  // ✅ A) Generar e imprimir ticket de COCINA (si hay productos)
+                  // GENERACIÓN E IMPRESIÓN DE TICKETS
                   if (productosCocina.isNotEmpty) {
                     final String comandaCocina = _generarComandaTicket(
-                      productosAImprimir:
-                          productosCocina, // 👈 SOLO productos de Cocina
+                      productosAImprimir: productosCocina,
                       numMesa: numMesa,
                       numComensales: numComensales,
-                      destino: 'Cocina', // 👈 Destino del encabezado
+                      destino: 'Cocina',
                       numPedido: numPedido,
                       mesaState: mesaState,
                     );
-                    _imprimirComanda(
-                      comandaCocina,
-                    ); // ✅ Imprime la comanda de Cocina
+                    _imprimirComanda(comandaCocina);
                   }
 
-                  // ✅ B) Generar e imprimir ticket de BARRA (si hay productos)
                   if (productosBarra.isNotEmpty) {
                     final String comandaBarra = _generarComandaTicket(
-                      productosAImprimir:
-                          productosBarra, // 👈 SOLO productos de Barra
+                      productosAImprimir: productosBarra,
                       numMesa: numMesa,
                       numComensales: numComensales,
-                      destino: 'Barra', // 👈 Destino del encabezado
+                      destino: 'Barra',
                       numPedido: numPedido,
                       mesaState: mesaState,
                     );
-                    _imprimirComanda(
-                      comandaBarra,
-                    ); // ✅ Imprime la comanda de Barra
+                    _imprimirComanda(comandaBarra);
                   }
 
-                  // --- 3. ACTUALIZAR ESTADO LOCAL (El resto sigue igual) ---
+                  // ACTUALIZAR ESTADO LOCAL
                   setState(() {
                     final alimentosEnviados = productosNoEnviados.map((item) {
                       return {
@@ -2464,7 +2730,7 @@ class _OrderPageState extends State<OrderPage> {
                     }
                   });
 
-                  // ✅ Mostrar mensaje de éxito
+                  // Mostrar mensaje de éxito
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -2477,16 +2743,91 @@ class _OrderPageState extends State<OrderPage> {
                     );
                   }
                 } catch (e) {
-                  // ... (Manejo de errores) ...
+                  print('❌ Error al enviar comanda: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("❌ Error al enviar comanda: $e"),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
                 }
               },
-              // ... (Estilos del botón) ...
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
               child: const Text("Enviar"),
             ),
           ],
         );
       },
     );
+  }
+
+  // ✅ NUEVO MÉTODO: Guardar en la colección correcta 'ordenesCocina'
+  Future<void> _guardarOrdenCocina({
+    required String id,
+    required String destino,
+    required List<Map<String, dynamic>> productos,
+  }) async {
+    try {
+      final mesero = mesaState.meseroActual.isNotEmpty
+          ? mesaState.meseroActual
+          : 'Mesero Genérico';
+
+      final turnoId = turnoState.turnoActual;
+
+      // Preparar productos con el campo 'entregado' en false
+      final productosParaFirestore = productos.map((p) {
+        return {
+          'nombre': p['nombre'] ?? '',
+          'cantidad': p['cantidad'] ?? 1,
+          'precio': p['precio'] ?? 0.0,
+          'nota': p['nota'] ?? '',
+          'tiempo': p['tiempo'] ?? 1,
+          'categoria': p['categoria'] ?? 'General',
+          'entregado': false, // ✅ Campo requerido por KitchenOrdersPage
+        };
+      }).toList();
+
+      final ordenData = {
+        'id': id,
+        'numeroMesa': widget.numeroMesa,
+        'mesero': mesero,
+        'comensales': widget.comensales,
+        'horaComanda': FieldValue.serverTimestamp(), // ✅ Campo requerido
+        'destino': destino,
+        'estado': 'en_cocina', // ✅ Estado correcto
+        'productos': productosParaFirestore,
+        'turnoId': turnoId,
+      };
+
+      // ✅ Guardar en la colección 'ordenesCocina'
+      await _firestore.collection('ordenesCocina').doc(id).set(ordenData);
+
+      print('✅ Orden guardada en ordenesCocina: $id');
+      print('   Destino: $destino');
+      print('   Productos: ${productos.length}');
+    } catch (e) {
+      print('❌ Error al guardar orden en ordenesCocina: $e');
+      rethrow;
+    }
+  }
+
+  // Método auxiliar para determinar si es barra (ya lo tienes)
+  bool _esBarra(Map<String, dynamic> producto) {
+    final categoria = (producto['categoria'] as String?)?.toLowerCase() ?? '';
+    return categoria.contains('cerveza') ||
+        categoria.contains('brandy') ||
+        categoria.contains('tequila') ||
+        categoria.contains('mezcales') ||
+        categoria.contains('sin alcohol') ||
+        categoria.contains('cocteleria') ||
+        categoria.contains('vinos') ||
+        categoria.contains('whisky');
   }
 
   Future<void> _guardarComandaEnFirestore({
@@ -2542,18 +2883,6 @@ class _OrderPageState extends State<OrderPage> {
       print('   Stack trace: ${StackTrace.current}');
       rethrow; // Re-lanzar para que sea capturado en _enviarComanda
     }
-  }
-
-  bool _esBarra(Map<String, dynamic> producto) {
-    final categoria = (producto['categoria'] as String?)?.toLowerCase() ?? '';
-    return categoria.contains('cerveza') ||
-        categoria.contains('brandy') ||
-        categoria.contains('tequila') ||
-        categoria.contains('mezcales') ||
-        categoria.contains('sin alcohol') ||
-        categoria.contains('cocteleria') ||
-        categoria.contains('vinos') ||
-        categoria.contains('whisky');
   }
 
   String _generarComandaTicket({
