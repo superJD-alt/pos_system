@@ -305,69 +305,127 @@ class _OrderPageState extends State<OrderPage> {
       },
       child: Scaffold(
         backgroundColor: Colors.grey,
-        resizeToAvoidBottomInset:
-            false, //para abrir el teclado de notas sin que la UI de mueva
-        body: Column(
-          children: [
-            // ================== HEADER SUPERIOR ==================
-            _buildHeader(),
-            const SizedBox(height: 5),
+        resizeToAvoidBottomInset: false,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            // ✅ Determinar tipo de pantalla (igual que panel_meseros.dart)
+            bool isSmallScreen = constraints.maxWidth < 600;
+            bool isMediumScreen =
+                constraints.maxWidth >= 600 && constraints.maxWidth < 1200;
+            bool isLargeScreen = constraints.maxWidth >= 1200;
 
-            // ================== FILA PRINCIPAL ==================
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(2.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ========== LADO IZQUIERDO ==========
-                    Expanded(flex: 1, child: _buildLeftPanel()),
+            // ✅ Configuración responsiva
+            double horizontalPadding = isSmallScreen
+                ? 2
+                : isMediumScreen
+                ? 4
+                : 8;
+            int crossAxisCount = isSmallScreen
+                ? 2
+                : isMediumScreen
+                ? 3
+                : 4;
+            double childAspectRatio = isSmallScreen ? 0.75 : 0.80;
 
-                    const SizedBox(width: 10),
+            return Column(
+              children: [
+                // ================== HEADER SUPERIOR ==================
+                _buildHeader(isSmallScreen, isMediumScreen),
+                const SizedBox(height: 5),
 
-                    // ========== LADO DERECHO ==========
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        children: [
-                          // ===== BOTONES DE CATEGORIAS =====
-                          _buildCategoriasBar(),
-                          const SizedBox(height: 5),
-
-                          // ===== GRID DE PRODUCTOS =====
-                          Expanded(
-                            child: Container(
-                              color: Colors.grey[300],
-                              padding: const EdgeInsets.all(10),
-                              child: cargandoProductos
-                                  ? const Center(
-                                      child: CircularProgressIndicator(),
-                                    )
-                                  : _buildProductosGrid(),
-                            ),
+                // ================== FILA PRINCIPAL ==================
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(horizontalPadding),
+                    child: isSmallScreen
+                        ? _buildSmallScreenLayout(
+                            crossAxisCount,
+                            childAspectRatio,
+                          )
+                        : _buildLargeScreenLayout(
+                            crossAxisCount,
+                            childAspectRatio,
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  // ✅ NUEVO: Widget para el header
-  // ==================== MODIFICACIONES PARA BOTONES COMPACTOS ====================
+  // ✅ NUEVO: Layout para pantallas pequeñas (móviles)
+  Widget _buildSmallScreenLayout(int crossAxisCount, double childAspectRatio) {
+    return Column(
+      children: [
+        // Grid de productos arriba
+        Expanded(
+          flex: 2,
+          child: Column(
+            children: [
+              _buildCategoriasBar(),
+              const SizedBox(height: 5),
+              Expanded(
+                child: Container(
+                  color: Colors.grey[300],
+                  padding: const EdgeInsets.all(10),
+                  child: cargandoProductos
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildProductosGrid(crossAxisCount, childAspectRatio),
+                ),
+              ),
+            ],
+          ),
+        ),
 
-  // 1. MODIFICAR EL HEADER (hacer botones más pequeños)
-  Widget _buildHeader() {
+        const SizedBox(height: 8),
+
+        // Panel de órdenes abajo
+        Expanded(flex: 1, child: _buildLeftPanel()),
+      ],
+    );
+  }
+
+  // ✅ NUEVO: Layout para pantallas grandes (tablets/escritorio)
+  Widget _buildLargeScreenLayout(int crossAxisCount, double childAspectRatio) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Panel izquierdo (órdenes)
+        Expanded(flex: 1, child: _buildLeftPanel()),
+
+        const SizedBox(width: 10),
+
+        // Panel derecho (productos)
+        Expanded(
+          flex: 1,
+          child: Column(
+            children: [
+              _buildCategoriasBar(),
+              const SizedBox(height: 5),
+              Expanded(
+                child: Container(
+                  color: Colors.grey[300],
+                  padding: const EdgeInsets.all(10),
+                  child: cargandoProductos
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildProductosGrid(crossAxisCount, childAspectRatio),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(bool isSmallScreen, bool isMediumScreen) {
     return Padding(
       padding: const EdgeInsets.all(2.0),
       child: Container(
-        height: 50, // ✅ Reducido de 70 a 50
+        height: isSmallScreen ? 45 : 50,
         width: double.infinity,
         color: Colors.white,
         child: Row(
@@ -377,25 +435,22 @@ class _OrderPageState extends State<OrderPage> {
                 _guardarPedidosLocales();
                 Navigator.pop(context);
               },
-              icon: const Icon(
-                Icons.arrow_back,
-                size: 16,
-              ), // ✅ Icono más pequeño
-              label: const Text(
+              icon: Icon(Icons.arrow_back, size: isSmallScreen ? 14 : 16),
+              label: Text(
                 'ATRÁS',
-                style: TextStyle(fontSize: 12),
-              ), // ✅ Texto más pequeño
+                style: TextStyle(fontSize: isSmallScreen ? 10 : 12),
+              ),
               style: _botonEstilo(
-                minWidth: 100,
-                minHeight: 45,
-              ), // ✅ Tamaños reducidos
+                minWidth: isSmallScreen ? 80 : 100,
+                minHeight: isSmallScreen ? 40 : 45,
+              ),
             ),
             const Spacer(),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ), // ✅ Padding reducido
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 8 : 12,
+                vertical: isSmallScreen ? 4 : 6,
+              ),
               decoration: BoxDecoration(
                 color: Colors.blue.shade100,
                 borderRadius: BorderRadius.circular(8),
@@ -405,16 +460,14 @@ class _OrderPageState extends State<OrderPage> {
                 children: [
                   Text(
                     'Mesa ${widget.numeroMesa}',
-                    style: const TextStyle(
-                      fontSize: 13, // ✅ Reducido de 16 a 13
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 11 : 13,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     '${widget.comensales} comensales',
-                    style: const TextStyle(
-                      fontSize: 10,
-                    ), // ✅ Reducido de 12 a 10
+                    style: TextStyle(fontSize: isSmallScreen ? 9 : 10),
                   ),
                 ],
               ),
@@ -422,16 +475,16 @@ class _OrderPageState extends State<OrderPage> {
             const Spacer(),
             ElevatedButton.icon(
               onPressed: _agregarProductoPersonalizado,
-              icon: const Icon(
+              icon: Icon(
                 Icons.add_circle_rounded,
-                size: 20,
-              ), // ✅ Reducido de 28 a 20
-              label: const Text(
-                'AGREGAR PRODUCTO',
+                size: isSmallScreen ? 16 : 20,
+              ),
+              label: Text(
+                isSmallScreen ? 'AGREGAR' : 'AGREGAR PRODUCTO',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: isSmallScreen ? 10 : 12,
                   fontWeight: FontWeight.bold,
-                ), // ✅ Reducido de 16 a 12
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -439,15 +492,15 @@ class _OrderPageState extends State<OrderPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ), // ✅ Padding reducido
-                elevation: 4, // ✅ Reducido de 8 a 4
-                minimumSize: const Size(
-                  140,
-                  45,
-                ), // ✅ Reducido de 180x60 a 140x45
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 8 : 16,
+                  vertical: isSmallScreen ? 6 : 10,
+                ),
+                elevation: 4,
+                minimumSize: Size(
+                  isSmallScreen ? 100 : 140,
+                  isSmallScreen ? 40 : 45,
+                ),
               ),
             ),
           ],
@@ -471,8 +524,7 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // ✅ NUEVO: Modifica _buildProductosGrid para mostrar divisores en bebidas
-  Widget _buildProductosGrid() {
+  Widget _buildProductosGrid(int crossAxisCount, double childAspectRatio) {
     final productos = productosFiltrados;
 
     if (productos.isEmpty) {
@@ -484,17 +536,19 @@ class _OrderPageState extends State<OrderPage> {
       );
     }
 
-    // ✅ Si estamos en bebidas, usar un ListView con divisores
     if (categoriaSeleccionada == "Bebidas") {
-      return _buildBebidasConDivisores(productos);
+      return _buildBebidasConDivisores(
+        productos,
+        crossAxisCount,
+        childAspectRatio,
+      );
     }
 
-    // Para otras categorías, usar el grid normal
     return GridView.builder(
       itemCount: productos.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.80,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: childAspectRatio,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
       ),
@@ -505,31 +559,29 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  // ✅ MEJORADO: Card de producto con mejor diseño
   Widget _buildProductoCard(Producto producto) {
-    // Colores más vibrantes y modernos por categoría
     Color getCategoryColor(String categoria) {
       switch (categoria.toLowerCase()) {
         case 'entradas':
-          return const Color(0xFFFF6B6B); // Rojo coral
+          return const Color(0xFFFF6B6B);
         case 'ensaladas':
-          return const Color(0xFF51CF66); // Verde fresco
+          return const Color(0xFF51CF66);
         case 'sopas':
-          return const Color(0xFFFFD93D); // Amarillo brillante
+          return const Color(0xFFFFD93D);
         case 'quesos':
-          return const Color(0xFFFFA94D); // Naranja queso
+          return const Color(0xFFFFA94D);
         case 'papas':
-          return const Color(0xFFD4A574); // Café dorado
+          return const Color(0xFFD4A574);
         case 'costillas':
-          return const Color(0xFFE03131); // Rojo carne
+          return const Color(0xFFE03131);
         case 'molcajetes':
-          return const Color(0xFFFF8787); // Rojo salmón
+          return const Color(0xFFFF8787);
         case 'cortes':
-          return const Color(0xFFC92A2A); // Rojo oscuro
+          return const Color(0xFFC92A2A);
         case 'tacos':
-          return const Color(0xFF94D82D); // Verde lima
+          return const Color(0xFF94D82D);
         case 'volcanes':
-          return const Color(0xFFFF6B35); // Naranja fuego
+          return const Color(0xFFFF6B35);
         case 'bebidas':
         case 'cocteleria':
         case 'cerveza':
@@ -539,11 +591,11 @@ class _OrderPageState extends State<OrderPage> {
         case 'mezcales':
         case 'vinos':
         case 'sin alcohol':
-          return const Color(0xFF4DABF7); // Azul agua
+          return const Color(0xFF4DABF7);
         case 'postres':
-          return const Color(0xFFFF69B4); // Rosa postre
+          return const Color(0xFFFF69B4);
         default:
-          return const Color(0xFF868E96); // Gris neutro
+          return const Color(0xFF868E96);
       }
     }
 
@@ -579,27 +631,29 @@ class _OrderPageState extends State<OrderPage> {
             ),
           ),
           padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ), // ✅ Reducido vertical de 12 a 8
           ),
           elevation: WidgetStateProperty.resolveWith<double>((states) {
-            if (states.contains(WidgetState.pressed)) {
-              return 2;
-            }
+            if (states.contains(WidgetState.pressed)) return 2;
             return 6;
           }),
           overlayColor: WidgetStateProperty.all(categoryColor.withOpacity(0.1)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize:
+              MainAxisSize.min, // ✅ CRÍTICO: Evita expansión innecesaria
           children: [
-            // ✅ Mostrar imagen o icono
+            // ✅ IMAGEN O ICONO - Tamaño fijo más pequeño
             if (tieneImagen)
               Container(
-                width: 100,
-                height: 100,
+                width: 70, // ✅ Reducido de 80 a 70 para dar más espacio
+                height: 70, // ✅ Reducido de 80 a 70
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-
                   border: Border.all(color: categoryColor, width: 3),
                   boxShadow: [
                     BoxShadow(
@@ -613,8 +667,8 @@ class _OrderPageState extends State<OrderPage> {
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
                     producto.imagen!,
-                    width: 100,
-                    height: 100,
+                    width: 70, // ✅ Actualizado
+                    height: 70, // ✅ Actualizado,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
@@ -655,7 +709,7 @@ class _OrderPageState extends State<OrderPage> {
                         ),
                         child: Icon(
                           _getIconForCategory(producto.categoria),
-                          size: 45,
+                          size: 35, // ✅ Reducido de 40 a 35
                           color: categoryColor,
                         ),
                       );
@@ -665,8 +719,8 @@ class _OrderPageState extends State<OrderPage> {
               )
             else
               Container(
-                width: 100,
-                height: 100,
+                width: 70, // ✅ Reducido de 80 a 70
+                height: 70, // ✅ Reducido de 80 a 70
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -688,40 +742,40 @@ class _OrderPageState extends State<OrderPage> {
                 ),
                 child: Icon(
                   _getIconForCategory(producto.categoria),
-                  size: 45,
+                  size: 35, // ✅ Reducido de 40 a 35
                   color: categoryColor,
                 ),
               ),
 
-            const SizedBox(height: 10),
-
-            // Nombre del producto
-            Expanded(
-              child: Center(
-                child: Text(
-                  producto.nombre,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    height: 1.2,
-                    letterSpacing: 0.3,
-                  ),
+            const SizedBox(height: 6), // ✅ Reducido de 8 a 6
+            // ✅ NOMBRE DEL PRODUCTO - Altura dinámica según si tiene gramos
+            Container(
+              height: producto.gramos != null
+                  ? 32
+                  : 36, // ✅ 32px si tiene gramos, 36px si no
+              alignment: Alignment.center,
+              child: Text(
+                producto.nombre,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12, // ✅ Reducido de 13 a 12
+                  height: 1.1, // ✅ Reducido de 1.2 a 1.1
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
 
-            const SizedBox(height: 6),
-
-            // Gramos (si aplica)
+            const SizedBox(height: 3), // ✅ Reducido a 3 cuando hay gramos
+            // ✅ GRAMOS (si aplica)
             if (producto.gramos != null) ...[
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                  horizontal: 8,
+                  vertical: 2,
+                ), // ✅ Padding mínimo
                 decoration: BoxDecoration(
                   color: categoryColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -733,21 +787,27 @@ class _OrderPageState extends State<OrderPage> {
                 child: Text(
                   '${producto.gramos}g',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10, // ✅ Reducido de 11 a 10
                     color: categoryColor.withOpacity(0.9),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 3), // ✅ Reducido a 3 cuando hay gramos
             ],
 
-            // Precio con diseño premium
+            // Si no hay gramos, usar más espacio antes del precio
+            if (producto.gramos == null) const SizedBox(height: 4),
+
+            // ✅ PRECIO con diseño premium
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 5,
+              ), // ✅ Padding reducido
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
                 ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
@@ -759,9 +819,9 @@ class _OrderPageState extends State<OrderPage> {
                 ],
               ),
               child: Text(
-                "\$${producto.precio.toStringAsFixed(2)}",
+                "\$${(producto.precio is int ? (producto.precio as int).toDouble() : producto.precio).toStringAsFixed(2)}",
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14, // ✅ Reducido de 15 a 14
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
@@ -1042,8 +1102,11 @@ class _OrderPageState extends State<OrderPage> {
     }
   }
 
-  // ✅ MEJORADO: Divisores de bebidas más atractivos
-  Widget _buildBebidasConDivisores(List<Producto> bebidas) {
+  Widget _buildBebidasConDivisores(
+    List<Producto> bebidas,
+    int crossAxisCount,
+    double childAspectRatio,
+  ) {
     Map<String, List<Producto>> bebidasPorCategoria = {};
     for (var bebida in bebidas) {
       if (!bebidasPorCategoria.containsKey(bebida.categoria)) {
@@ -1052,25 +1115,24 @@ class _OrderPageState extends State<OrderPage> {
       bebidasPorCategoria[bebida.categoria]!.add(bebida);
     }
 
-    // Colores específicos para cada categoría de bebida
     Color getBebidasCategoryColor(String categoria) {
       switch (categoria.toLowerCase()) {
         case 'cocteleria':
-          return const Color(0xFFFF6B9D); // Rosa cocktail
+          return const Color(0xFFFF6B9D);
         case 'cerveza':
-          return const Color(0xFFFFA94D); // Dorado cerveza
+          return const Color(0xFFFFA94D);
         case 'tequila':
-          return const Color(0xFF51CF66); // Verde agave
+          return const Color(0xFF51CF66);
         case 'whisky':
-          return const Color(0xFFD4A574); // Café whisky
+          return const Color(0xFFD4A574);
         case 'brandy':
-          return const Color(0xFFB8860B); // Dorado oscuro
+          return const Color(0xFFB8860B);
         case 'mezcales':
-          return const Color(0xFF8B4513); // Café ahumado
+          return const Color(0xFF8B4513);
         case 'vinos':
-          return const Color(0xFF8E44AD); // Púrpura vino
+          return const Color(0xFF8E44AD);
         case 'sin alcohol':
-          return const Color(0xFF4ECDC4); // Turquesa
+          return const Color(0xFF4ECDC4);
         default:
           return const Color(0xFF4DABF7);
       }
@@ -1149,6 +1211,7 @@ class _OrderPageState extends State<OrderPage> {
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '${productosCategoria.length}',
@@ -1163,16 +1226,15 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ),
 
-            // Grid de productos
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: productosCategoria.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 0.80,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: childAspectRatio,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                 ),
@@ -1182,7 +1244,7 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ),
 
-            const SizedBox(height: 24), // Espacio entre categorías
+            const SizedBox(height: 24),
           ],
         );
       },
@@ -1221,20 +1283,24 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   // ✅ NUEVO: Agregar producto desde Firestore
+  // ✅ MODIFICADO: Agregar producto desde Firestore con término en la nota
   void _agregarProductoDesdeFirestore(Producto producto) async {
     // Verificar si es un corte para solicitar el término
-    if (producto.categoria.toLowerCase() == 'cortes') {
+    if (producto.categoria.toLowerCase() == 'cortes prime') {
       final termino = await _seleccionarTerminoCoccion(producto.nombre);
       if (termino == null) return; // Usuario canceló
 
       setState(() {
         int cantidad = (cantidadBuffer > 0) ? cantidadBuffer : 1;
 
+        // ✅ NUEVO: Crear la nota automáticamente con el término
+        String notaConTermino = "TÉRMINO: $termino";
+
         // Buscar si ya existe el mismo corte con el mismo término
         final index = ordenes.indexWhere(
           (item) =>
               item['nombre'] == producto.nombre &&
-              item['termino'] == termino &&
+              item['nota'] == notaConTermino &&
               item['enviado'] != true,
         );
 
@@ -1249,12 +1315,11 @@ class _OrderPageState extends State<OrderPage> {
             "precio": producto.precio,
             "cantidad": cantidad,
             "total": producto.precio * cantidad,
-            "nota": "",
+            "nota": notaConTermino, // ✅ Nota automática con el término
             "enviado": false,
             "productoId": producto.id,
             "categoria": producto.categoria,
             "tiempo": 1,
-            "termino": termino, // ✅ Guardar el término de cocción
           };
           ordenes.add(nuevo);
           productoSeleccionado = nuevo;
@@ -1306,7 +1371,7 @@ class _OrderPageState extends State<OrderPage> {
       children: [
         // ===== TABLA DE ORDENES (más compacta) =====
         Container(
-          height: 380, // ✅ Reducido de 350 a 280
+          height: 300, // ✅ Reducido de 350 a 280
           child: Container(
             color: Colors.grey[100],
             width: double.infinity,

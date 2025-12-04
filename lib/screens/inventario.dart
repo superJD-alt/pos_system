@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/content_card.dart';
-import '../screens/inventario_seeder.dart';
 
 class InventarioScreen extends StatefulWidget {
   const InventarioScreen({Key? key}) : super(key: key);

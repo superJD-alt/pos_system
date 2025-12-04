@@ -5,7 +5,6 @@ import '../screens/inventario.dart';
 import '../screens/reportes.dart';
 import '../screens/usuarios.dart';
 import '../screens/productos.dart';
-// 🛑 CORRECCIÓN: La importación de SidebarMenu debe apuntar a la carpeta 'widgets'
 import '../screens/sidebar_menu.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pos_system/pages/login_pos.dart';

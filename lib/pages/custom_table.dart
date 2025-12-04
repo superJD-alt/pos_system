@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:pos_system/pages/order.dart'; // Asegúrate de que OrderPage esté definido
-import 'mesa_state.dart'; // Asegúrate de que MesaState esté definida e implementada
+import 'package:pos_system/pages/order.dart';
+import 'mesa_state.dart';
 import 'package:flutter/services.dart';
 
 class CustomTable extends StatefulWidget {
@@ -27,9 +27,6 @@ class _CustomTableState extends State<CustomTable> {
   @override
   void dispose() {
     print('🔓 Manteniendo todas las orientaciones');
-    // Es buena práctica restablecer las orientaciones si la aplicación
-    // no espera una orientación fija en otros lugares
-    // SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
@@ -44,10 +41,6 @@ class _CustomTableState extends State<CustomTable> {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos MediaQuery.of(context).size fuera de LayoutBuilder solo para
-    // el posicionamiento rígido en el modo Landscape.
-    final screenSize = MediaQuery.of(context).size;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("Selección de mesas"),
@@ -60,288 +53,552 @@ class _CustomTableState extends State<CustomTable> {
         builder: (context, constraints) {
           final width = constraints.maxWidth;
           final height = constraints.maxHeight;
-          final isLandscape = width > height;
 
-          // Definición de tamaños responsivos para Portrait
-          final baseSize = min(width, height) * 0.12;
+          // ✅ Determinar tipo de pantalla
+          bool isSmallScreen = width < 600;
+          bool isMediumScreen = width >= 600 && width < 1200;
+          bool isLargeScreen = width >= 1200;
+          bool isLandscape = width > height;
+
+          // ✅ Tamaños base responsivos
+          final baseSize =
+              min(width, height) *
+              (isSmallScreen
+                  ? 0.12
+                  : isMediumScreen
+                  ? 0.10
+                  : 0.08);
           final smallTable = baseSize * 1.2;
           final mediumTable = baseSize * 1.5;
           final mediumSmallTable = baseSize * 1.35;
 
-          final horizontalMargin = width * 0.03;
-          final verticalMargin = height * 0.04;
+          final horizontalMargin = width * (isSmallScreen ? 0.03 : 0.04);
+          final verticalMargin = height * (isSmallScreen ? 0.04 : 0.05);
 
-          if (isLandscape) {
-            // 🌐 DISTRIBUCIÓN HORIZONTAL (Landscape) - Usando screenSize
-            return Stack(
-              children: [
-                //mesa 1 (2 personas)
-                Positioned(
-                  left: screenSize.width * 0.59,
-                  top: screenSize.height * 0.38,
-                  child: const MesaBase(
-                    cantidadPersonas: 2,
-                    ancho: 80,
-                    alto: 80,
-                    numeroMesa: 4,
-                  ),
-                ),
-                //mesa 2 (2 personas)
-                Positioned(
-                  left: screenSize.width * 0.59,
-                  top: screenSize.height * 0.08,
-                  child: const MesaBase(
-                    cantidadPersonas: 2,
-                    ancho: 80,
-                    alto: 80,
-                    numeroMesa: 3,
-                  ),
-                ),
-                // mesa 3 (4 personas)
-                Positioned(
-                  left: screenSize.width * 0.70,
-                  top: screenSize.height * 0.59,
-                  child: const MesaBase(
-                    cantidadPersonas: 4,
-                    ancho: 200,
-                    alto: 80,
-                    numeroMesa: 2,
-                  ),
-                ),
-                //mesa 4 (4 personas)
-                Positioned(
-                  left: screenSize.width * 0.35,
-                  top: screenSize.height * 0.33,
-                  child: const MesaBase(
-                    cantidadPersonas: 4,
-                    ancho: 150,
-                    alto: 80,
-                    numeroMesa: 6,
-                  ),
-                ),
-                //mesa 5 (6 personas)
-                Positioned(
-                  left: screenSize.width * 0.35,
-                  top: screenSize.height * 0.08,
-                  child: const MesaBase(
-                    cantidadPersonas: 6,
-                    ancho: 160,
-                    alto: 80,
-                    numeroMesa: 5,
-                  ),
-                ),
-                //mesa 6 (6 personas)
-                Positioned(
-                  left: screenSize.width * 0.72,
-                  top: screenSize.height * 0.18,
-                  child: const MesaBase(
-                    cantidadPersonas: 6,
-                    ancho: 160,
-                    alto: 80,
-                    numeroMesa: 1,
-                  ),
-                ),
-                //mesa 7 (8 personas)
-                Positioned(
-                  left: screenSize.width * 0.06,
-                  top: screenSize.height * 0.33,
-                  child: const MesaBase(
-                    cantidadPersonas: 8,
-                    ancho: 200,
-                    alto: 80,
-                    numeroMesa: 9,
-                  ),
-                ),
-                //mesa 8 (8 personas)
-                Positioned(
-                  left: screenSize.width * 0.06,
-                  top: screenSize.height * 0.58,
-                  child: const MesaBase(
-                    cantidadPersonas: 8,
-                    ancho: 200,
-                    alto: 80,
-                    numeroMesa: 10,
-                  ),
-                ),
-                //mesa 9 (8 personas)
-                Positioned(
-                  left: screenSize.width * 0.06,
-                  top: screenSize.height * 0.08,
-                  child: const MesaBase(
-                    cantidadPersonas: 8,
-                    ancho: 200,
-                    alto: 80,
-                    numeroMesa: 8,
-                  ),
-                ),
-                //mesa 10 (10 personas)
-                Positioned(
-                  left: screenSize.width * 0.35,
-                  top: screenSize.height * 0.58,
-                  child: const MesaBase(
-                    cantidadPersonas: 10,
-                    ancho: 260,
-                    alto: 90,
-                    numeroMesa: 7,
-                  ),
-                ),
-              ],
-            );
+          if (isLargeScreen && isLandscape) {
+            // 🖥️ PANTALLAS GRANDES EN LANDSCAPE
+            return _buildLargeLandscapeLayout(width, height);
+          } else if (isMediumScreen && isLandscape) {
+            // 💻 PANTALLAS MEDIANAS EN LANDSCAPE
+            return _buildMediumLandscapeLayout(width, height);
+          } else if (isSmallScreen && isLandscape) {
+            // 📱 PANTALLAS PEQUEÑAS EN LANDSCAPE
+            return _buildSmallLandscapeLayout(width, height);
           } else {
-            // 📱 DISTRIBUCIÓN VERTICAL (Portrait) - Usando LayoutBuilder
-            return SingleChildScrollView(
-              child: Container(
-                // Esto asegura que el SingleChildScrollView sea suficientemente largo
-                height: height * 1.5,
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalMargin * 2,
-                  vertical: verticalMargin,
-                ),
-                child: Stack(
-                  children: [
-                    // ========== SECCIÓN SUPERIOR ==========
-                    Positioned(
-                      left: width * 0.05,
-                      top: 0,
-                      child: MesaBase(
-                        cantidadPersonas: 6,
-                        ancho: width * 0.55,
-                        alto: baseSize * 0.9,
-                        numeroMesa: 8,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.05,
-                      top: baseSize * 0.1,
-                      child: MesaBase(
-                        cantidadPersonas: 2,
-                        ancho: smallTable,
-                        alto: smallTable,
-                        numeroMesa: 3,
-                      ),
-                    ),
-                    // ========== SECCIÓN ALTA ==========
-                    Positioned(
-                      left: width * 0.08,
-                      top: height * 0.12,
-                      child: MesaBase(
-                        cantidadPersonas: 2,
-                        ancho: smallTable,
-                        alto: smallTable,
-                        numeroMesa: 11,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.08,
-                      top: height * 0.14,
-                      child: MesaBase(
-                        cantidadPersonas: 4,
-                        ancho: mediumTable,
-                        alto: mediumTable,
-                        numeroMesa: 5,
-                      ),
-                    ),
-                    // ========== SECCIÓN MEDIA-ALTA ==========
-                    Positioned(
-                      left: width * 0.05,
-                      top: height * 0.24,
-                      child: MesaBase(
-                        cantidadPersonas: 6,
-                        ancho: width * 0.55,
-                        alto: baseSize * 0.9,
-                        numeroMesa: 1,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.08,
-                      top: height * 0.26,
-                      child: MesaBase(
-                        cantidadPersonas: 3,
-                        ancho: mediumSmallTable,
-                        alto: mediumSmallTable,
-                        numeroMesa: 13,
-                      ),
-                    ),
-                    // ========== SECCIÓN CENTRO ==========
-                    Positioned(
-                      left: width * 0.05,
-                      top: height * 0.38,
-                      child: MesaBase(
-                        cantidadPersonas: 6,
-                        ancho: width * 0.55,
-                        alto: baseSize * 0.9,
-                        numeroMesa: 9,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.05,
-                      top: height * 0.39,
-                      child: MesaBase(
-                        cantidadPersonas: 2,
-                        ancho: smallTable,
-                        alto: smallTable,
-                        numeroMesa: 12,
-                      ),
-                    ),
-                    // ========== SECCIÓN MEDIA ==========
-                    Positioned(
-                      left: width * 0.08,
-                      top: height * 0.50,
-                      child: MesaBase(
-                        cantidadPersonas: 2,
-                        ancho: smallTable,
-                        alto: smallTable,
-                        numeroMesa: 4,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.08,
-                      top: height * 0.52,
-                      child: MesaBase(
-                        cantidadPersonas: 4,
-                        ancho: mediumTable,
-                        alto: mediumTable,
-                        numeroMesa: 6,
-                      ),
-                    ),
-                    // ========== SECCIÓN MEDIA-BAJA ==========
-                    Positioned(
-                      left: width * 0.05,
-                      top: height * 0.64,
-                      child: MesaBase(
-                        cantidadPersonas: 6,
-                        ancho: width * 0.55,
-                        alto: baseSize * 0.9,
-                        numeroMesa: 10,
-                      ),
-                    ),
-                    Positioned(
-                      right: width * 0.08,
-                      top: height * 0.66,
-                      child: MesaBase(
-                        cantidadPersonas: 4,
-                        ancho: mediumTable,
-                        alto: mediumTable,
-                        numeroMesa: 2,
-                      ),
-                    ),
-                    // ========== SECCIÓN INFERIOR ==========
-                    Positioned(
-                      left: width * 0.1,
-                      top: height * 0.82,
-                      child: MesaBase(
-                        cantidadPersonas: 10,
-                        ancho: width * 0.75,
-                        alto: baseSize * 1.0,
-                        numeroMesa: 7,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            // 📱 MODO PORTRAIT (Todas las pantallas)
+            return _buildPortraitLayout(
+              width,
+              height,
+              baseSize,
+              smallTable,
+              mediumTable,
+              mediumSmallTable,
+              horizontalMargin,
+              verticalMargin,
+              isSmallScreen,
             );
           }
         },
+      ),
+    );
+  }
+
+  // 🖥️ Layout para pantallas grandes en landscape
+  Widget _buildLargeLandscapeLayout(double width, double height) {
+    return Stack(
+      children: [
+        // Mesas de 2 personas
+        Positioned(
+          left: width * 0.59,
+          top: height * 0.38,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 90,
+            alto: 90,
+            numeroMesa: 4,
+          ),
+        ),
+        Positioned(
+          left: width * 0.59,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 90,
+            alto: 90,
+            numeroMesa: 3,
+          ),
+        ),
+        // Mesas de 4 personas
+        Positioned(
+          left: width * 0.70,
+          top: height * 0.59,
+          child: const MesaBase(
+            cantidadPersonas: 4,
+            ancho: 220,
+            alto: 90,
+            numeroMesa: 2,
+          ),
+        ),
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.33,
+          child: const MesaBase(
+            cantidadPersonas: 4,
+            ancho: 170,
+            alto: 90,
+            numeroMesa: 6,
+          ),
+        ),
+        // Mesas de 6 personas
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 6,
+            ancho: 180,
+            alto: 90,
+            numeroMesa: 5,
+          ),
+        ),
+        Positioned(
+          left: width * 0.72,
+          top: height * 0.18,
+          child: const MesaBase(
+            cantidadPersonas: 6,
+            ancho: 180,
+            alto: 90,
+            numeroMesa: 1,
+          ),
+        ),
+        // Mesas de 8 personas
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.33,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 220,
+            alto: 90,
+            numeroMesa: 9,
+          ),
+        ),
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.58,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 220,
+            alto: 90,
+            numeroMesa: 10,
+          ),
+        ),
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 220,
+            alto: 90,
+            numeroMesa: 8,
+          ),
+        ),
+        // Mesa de 10 personas
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.58,
+          child: const MesaBase(
+            cantidadPersonas: 10,
+            ancho: 280,
+            alto: 100,
+            numeroMesa: 7,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 💻 Layout para pantallas medianas en landscape
+  Widget _buildMediumLandscapeLayout(double width, double height) {
+    return Stack(
+      children: [
+        Positioned(
+          left: width * 0.59,
+          top: height * 0.38,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 75,
+            alto: 75,
+            numeroMesa: 4,
+          ),
+        ),
+        Positioned(
+          left: width * 0.59,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 75,
+            alto: 75,
+            numeroMesa: 3,
+          ),
+        ),
+        Positioned(
+          left: width * 0.70,
+          top: height * 0.59,
+          child: const MesaBase(
+            cantidadPersonas: 4,
+            ancho: 180,
+            alto: 75,
+            numeroMesa: 2,
+          ),
+        ),
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.33,
+          child: const MesaBase(
+            cantidadPersonas: 4,
+            ancho: 140,
+            alto: 75,
+            numeroMesa: 6,
+          ),
+        ),
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 6,
+            ancho: 150,
+            alto: 75,
+            numeroMesa: 5,
+          ),
+        ),
+        Positioned(
+          left: width * 0.72,
+          top: height * 0.18,
+          child: const MesaBase(
+            cantidadPersonas: 6,
+            ancho: 150,
+            alto: 75,
+            numeroMesa: 1,
+          ),
+        ),
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.33,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 180,
+            alto: 75,
+            numeroMesa: 9,
+          ),
+        ),
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.58,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 180,
+            alto: 75,
+            numeroMesa: 10,
+          ),
+        ),
+        Positioned(
+          left: width * 0.06,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 8,
+            ancho: 180,
+            alto: 75,
+            numeroMesa: 8,
+          ),
+        ),
+        Positioned(
+          left: width * 0.35,
+          top: height * 0.58,
+          child: const MesaBase(
+            cantidadPersonas: 10,
+            ancho: 240,
+            alto: 85,
+            numeroMesa: 7,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 📱 Layout para pantallas pequeñas en landscape
+  Widget _buildSmallLandscapeLayout(double width, double height) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: width * 1.5,
+        height: height,
+        child: Stack(
+          children: [
+            Positioned(
+              left: width * 0.65,
+              top: height * 0.38,
+              child: const MesaBase(
+                cantidadPersonas: 2,
+                ancho: 60,
+                alto: 60,
+                numeroMesa: 4,
+              ),
+            ),
+            Positioned(
+              left: width * 0.65,
+              top: height * 0.08,
+              child: const MesaBase(
+                cantidadPersonas: 2,
+                ancho: 60,
+                alto: 60,
+                numeroMesa: 3,
+              ),
+            ),
+            Positioned(
+              left: width * 0.85,
+              top: height * 0.59,
+              child: const MesaBase(
+                cantidadPersonas: 4,
+                ancho: 140,
+                alto: 60,
+                numeroMesa: 2,
+              ),
+            ),
+            Positioned(
+              left: width * 0.40,
+              top: height * 0.33,
+              child: const MesaBase(
+                cantidadPersonas: 4,
+                ancho: 120,
+                alto: 60,
+                numeroMesa: 6,
+              ),
+            ),
+            Positioned(
+              left: width * 0.40,
+              top: height * 0.08,
+              child: const MesaBase(
+                cantidadPersonas: 6,
+                ancho: 130,
+                alto: 60,
+                numeroMesa: 5,
+              ),
+            ),
+            Positioned(
+              left: width * 0.85,
+              top: height * 0.18,
+              child: const MesaBase(
+                cantidadPersonas: 6,
+                ancho: 130,
+                alto: 60,
+                numeroMesa: 1,
+              ),
+            ),
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.33,
+              child: const MesaBase(
+                cantidadPersonas: 8,
+                ancho: 150,
+                alto: 60,
+                numeroMesa: 9,
+              ),
+            ),
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.58,
+              child: const MesaBase(
+                cantidadPersonas: 8,
+                ancho: 150,
+                alto: 60,
+                numeroMesa: 10,
+              ),
+            ),
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.08,
+              child: const MesaBase(
+                cantidadPersonas: 8,
+                ancho: 150,
+                alto: 60,
+                numeroMesa: 8,
+              ),
+            ),
+            Positioned(
+              left: width * 0.40,
+              top: height * 0.58,
+              child: const MesaBase(
+                cantidadPersonas: 10,
+                ancho: 200,
+                alto: 70,
+                numeroMesa: 7,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📱 Layout para modo portrait (todas las pantallas)
+  Widget _buildPortraitLayout(
+    double width,
+    double height,
+    double baseSize,
+    double smallTable,
+    double mediumTable,
+    double mediumSmallTable,
+    double horizontalMargin,
+    double verticalMargin,
+    bool isSmallScreen,
+  ) {
+    return SingleChildScrollView(
+      child: Container(
+        height: height * (isSmallScreen ? 1.5 : 1.3),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalMargin * 2,
+          vertical: verticalMargin,
+        ),
+        child: Stack(
+          children: [
+            // ========== SECCIÓN SUPERIOR ==========
+            Positioned(
+              left: width * 0.05,
+              top: 0,
+              child: MesaBase(
+                cantidadPersonas: 6,
+                ancho: width * 0.55,
+                alto: baseSize * 0.9,
+                numeroMesa: 8,
+              ),
+            ),
+            Positioned(
+              right: width * 0.05,
+              top: baseSize * 0.1,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 3,
+              ),
+            ),
+            // ========== SECCIÓN ALTA ==========
+            Positioned(
+              left: width * 0.08,
+              top: height * 0.12,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 11,
+              ),
+            ),
+            Positioned(
+              right: width * 0.08,
+              top: height * 0.14,
+              child: MesaBase(
+                cantidadPersonas: 4,
+                ancho: mediumTable,
+                alto: mediumTable,
+                numeroMesa: 5,
+              ),
+            ),
+            // ========== SECCIÓN MEDIA-ALTA ==========
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.24,
+              child: MesaBase(
+                cantidadPersonas: 6,
+                ancho: width * 0.55,
+                alto: baseSize * 0.9,
+                numeroMesa: 1,
+              ),
+            ),
+            Positioned(
+              right: width * 0.08,
+              top: height * 0.26,
+              child: MesaBase(
+                cantidadPersonas: 3,
+                ancho: mediumSmallTable,
+                alto: mediumSmallTable,
+                numeroMesa: 13,
+              ),
+            ),
+            // ========== SECCIÓN CENTRO ==========
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.38,
+              child: MesaBase(
+                cantidadPersonas: 6,
+                ancho: width * 0.55,
+                alto: baseSize * 0.9,
+                numeroMesa: 9,
+              ),
+            ),
+            Positioned(
+              right: width * 0.05,
+              top: height * 0.39,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 12,
+              ),
+            ),
+            // ========== SECCIÓN MEDIA ==========
+            Positioned(
+              left: width * 0.08,
+              top: height * 0.50,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 4,
+              ),
+            ),
+            Positioned(
+              right: width * 0.08,
+              top: height * 0.52,
+              child: MesaBase(
+                cantidadPersonas: 4,
+                ancho: mediumTable,
+                alto: mediumTable,
+                numeroMesa: 6,
+              ),
+            ),
+            // ========== SECCIÓN MEDIA-BAJA ==========
+            Positioned(
+              left: width * 0.05,
+              top: height * 0.64,
+              child: MesaBase(
+                cantidadPersonas: 6,
+                ancho: width * 0.55,
+                alto: baseSize * 0.9,
+                numeroMesa: 10,
+              ),
+            ),
+            Positioned(
+              right: width * 0.08,
+              top: height * 0.66,
+              child: MesaBase(
+                cantidadPersonas: 4,
+                ancho: mediumTable,
+                alto: mediumTable,
+                numeroMesa: 2,
+              ),
+            ),
+            // ========== SECCIÓN INFERIOR ==========
+            Positioned(
+              left: width * 0.1,
+              top: height * 0.82,
+              child: MesaBase(
+                cantidadPersonas: 10,
+                ancho: width * 0.75,
+                alto: baseSize * 1.0,
+                numeroMesa: 7,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -364,7 +621,6 @@ class MesaBase extends StatefulWidget {
     required this.numeroMesa,
   });
 
-  // Agregamos un método estático para poder notificar a esta mesa
   static void actualizarMesa(BuildContext context) {
     context.findAncestorStateOfType<_MesaBaseState>()?.setState(() {});
   }
@@ -374,9 +630,6 @@ class MesaBase extends StatefulWidget {
 }
 
 class _MesaBaseState extends State<MesaBase> {
-  // ATENCIÓN: En un sistema real, MesaState debería ser un ChangeNotifier
-  // o utilizar un StreamBuilder para la reactividad.
-  // Por ahora, lo mantenemos como instancia única de utilidad.
   final MesaState mesaState = MesaState();
   String numeroSeleccionado = '';
 
@@ -384,7 +637,6 @@ class _MesaBaseState extends State<MesaBase> {
     final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
     if (mesaOcupada) {
-      // Caso 1: Mesa ya ocupada -> Navegar a la página de pedidos
       final int comensalesActuales = mesaState.obtenerComensales(
         widget.numeroMesa,
       )!;
@@ -392,7 +644,6 @@ class _MesaBaseState extends State<MesaBase> {
       return;
     }
 
-    // Caso 2: Mesa disponible -> Mostrar teclado para abrir la mesa
     numeroSeleccionado = '';
 
     showDialog(
@@ -403,10 +654,17 @@ class _MesaBaseState extends State<MesaBase> {
           final screenWidth = screenSize.width;
           final screenHeight = screenSize.height;
 
+          // ✅ Responsividad mejorada para el diálogo
+          final isSmallScreen = screenWidth < 600;
+          final isMediumScreen = screenWidth >= 600 && screenWidth < 900;
+          final isLargeScreen = screenWidth >= 900;
           final isLandscape = screenWidth > screenHeight;
-          final dialogWidth = isLandscape
-              ? min(screenWidth * 0.5, 450.0)
-              : min(screenWidth * 0.85, 400.0);
+
+          final dialogWidth = isSmallScreen
+              ? min(screenWidth * 0.90, 380.0)
+              : isMediumScreen
+              ? min(screenWidth * 0.70, 450.0)
+              : min(screenWidth * 0.50, 500.0);
 
           return Dialog(
             backgroundColor: Colors.white,
@@ -415,8 +673,16 @@ class _MesaBaseState extends State<MesaBase> {
             ),
             child: Container(
               width: dialogWidth,
-              constraints: BoxConstraints(maxHeight: screenHeight * 0.8),
-              padding: EdgeInsets.all(isLandscape ? 16 : 20),
+              constraints: BoxConstraints(
+                maxHeight: screenHeight * (isSmallScreen ? 0.85 : 0.75),
+              ),
+              padding: EdgeInsets.all(
+                isSmallScreen
+                    ? 16
+                    : isMediumScreen
+                    ? 20
+                    : 24,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -424,27 +690,31 @@ class _MesaBaseState extends State<MesaBase> {
                     Text(
                       'Mesa ${widget.numeroMesa}',
                       style: TextStyle(
-                        fontSize: isLandscape ? 20 : 24,
+                        fontSize: isSmallScreen
+                            ? 22
+                            : isMediumScreen
+                            ? 26
+                            : 28,
                         fontWeight: FontWeight.bold,
                         color: Colors.blue[800],
                       ),
                     ),
-                    SizedBox(height: isLandscape ? 10 : 15),
+                    SizedBox(height: isSmallScreen ? 12 : 16),
                     Text(
                       'Ingresa el número de comensales',
                       style: TextStyle(
-                        fontSize: isLandscape ? 16 : 18,
+                        fontSize: isSmallScreen ? 16 : 18,
                         fontWeight: FontWeight.w600,
                         color: Colors.grey[700],
                       ),
                     ),
-                    SizedBox(height: isLandscape ? 10 : 15),
+                    SizedBox(height: isSmallScreen ? 12 : 16),
                     // Display del número seleccionado
                     Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(
-                        vertical: isLandscape ? 12 : 18,
-                        horizontal: isLandscape ? 15 : 20,
+                        vertical: isSmallScreen ? 14 : 18,
+                        horizontal: isSmallScreen ? 16 : 20,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
@@ -457,18 +727,23 @@ class _MesaBaseState extends State<MesaBase> {
                             : '0',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: isLandscape ? 28 : 36,
+                          fontSize: isSmallScreen
+                              ? 32
+                              : isMediumScreen
+                              ? 38
+                              : 42,
                           fontWeight: FontWeight.bold,
                           color: Colors.blue[800],
                         ),
                       ),
                     ),
-                    SizedBox(height: isLandscape ? 12 : 20),
+                    SizedBox(height: isSmallScreen ? 14 : 20),
                     // Teclado
                     _buildTecladoNumerico(
                       setDialogState,
                       dialogWidth,
-                      isLandscape,
+                      isSmallScreen,
+                      isMediumScreen,
                     ),
                   ],
                 ),
@@ -483,17 +758,20 @@ class _MesaBaseState extends State<MesaBase> {
   Widget _buildTecladoNumerico(
     StateSetter setDialogState,
     double dialogWidth,
-    bool isLandscape,
+    bool isSmallScreen,
+    bool isMediumScreen,
   ) {
-    final buttonSize = isLandscape
-        ? min((dialogWidth - 80) / 3.5, 70.0)
-        : min((dialogWidth - 100) / 3.5, 90.0);
+    final buttonSize = isSmallScreen
+        ? min((dialogWidth - 80) / 3.5, 85.0)
+        : isMediumScreen
+        ? min((dialogWidth - 100) / 3.5, 95.0)
+        : min((dialogWidth - 120) / 3.5, 105.0);
 
     return Column(
       children: [
         for (int row = 0; row < 3; row++)
           Padding(
-            padding: EdgeInsets.symmetric(vertical: isLandscape ? 3 : 4),
+            padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 4 : 5),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -506,11 +784,11 @@ class _MesaBaseState extends State<MesaBase> {
               ],
             ),
           ),
-        SizedBox(height: isLandscape ? 3 : 4),
+        SizedBox(height: isSmallScreen ? 4 : 5),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildTeclaBorrar(buttonSize, setDialogState), // ✅ Borrar
+            _buildTeclaBorrar(buttonSize, setDialogState),
             _buildTeclaNumero('0', setDialogState, buttonSize),
             _buildTeclaConfirmar(buttonSize),
           ],
@@ -530,7 +808,6 @@ class _MesaBaseState extends State<MesaBase> {
       child: ElevatedButton(
         onPressed: () {
           setDialogState(() {
-            // Máximo de 2 dígitos, y no puede empezar con 0 a menos que sea 0
             if (numeroSeleccionado.length < 2 &&
                 !(numeroSeleccionado.isEmpty && numero == '0')) {
               numeroSeleccionado += numero;
@@ -560,7 +837,6 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // ✅ Tecla de borrado
   Widget _buildTeclaBorrar(double size, StateSetter setDialogState) {
     return SizedBox(
       width: size,
@@ -601,13 +877,11 @@ class _MesaBaseState extends State<MesaBase> {
         onPressed: () {
           if (numeroSeleccionado.isNotEmpty) {
             int comensales = int.tryParse(numeroSeleccionado) ?? 0;
-            // Validamos que haya al menos 1 comensal
             if (comensales > 0) {
               mesaState.ocuparMesa(widget.numeroMesa, comensales);
-              Navigator.pop(context); // Cierra el diálogo
-              _irAOrderPage(comensales); // Navega a la página de pedidos
+              Navigator.pop(context);
+              _irAOrderPage(comensales);
             } else {
-              // Muestra un mensaje si los comensales son 0
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -618,7 +892,6 @@ class _MesaBaseState extends State<MesaBase> {
               );
             }
           } else {
-            // Muestra un mensaje si no se ha ingresado nada
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Por favor, ingresa el número de comensales.'),
@@ -651,11 +924,7 @@ class _MesaBaseState extends State<MesaBase> {
         builder: (_) =>
             OrderPage(numeroMesa: widget.numeroMesa, comensales: comensales),
       ),
-      // ⚠️ CRÍTICO: Usamos .then((_) => setState(() {})) para asegurar
-      // que la MesaBase se reconstruya y actualice su color (rojo)
-      // al volver de la página de pedidos.
     ).then((_) {
-      // Forzar la reconstrucción de esta mesa específica
       setState(() {});
     });
   }
@@ -663,7 +932,6 @@ class _MesaBaseState extends State<MesaBase> {
   @override
   Widget build(BuildContext context) {
     final bool esCircular = widget.cantidadPersonas == 2;
-    // La reactividad está garantizada por el setState() en _irAOrderPage
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
@@ -675,7 +943,6 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // 🔹 Diseño circular (con sillas funcionales)
   Widget _mesaCircular(int? comensales, bool estaOcupada) {
     final minDimension = widget.ancho < widget.alto
         ? widget.ancho
@@ -683,14 +950,9 @@ class _MesaBaseState extends State<MesaBase> {
     final fontSize = minDimension * 0.28;
     final comensalesFontSize = fontSize * 0.70;
 
-    // ✅ AJUSTE CLAVE: Distancia del centro de la mesa al centro de la silla
-    // (Radio de la mesa + Radio de la silla (15) + GAP (5 unidades)) = radio + 20
     final double radio = minDimension / 2;
     final double chairCenterDistance = radio + 20;
-
-    final double sillaSize = 30; // Diámetro de la silla
-
-    // El diámetro total debe ajustarse a la nueva distancia
+    final double sillaSize = 30;
     final double diametroTotal = 2 * (chairCenterDistance + sillaSize / 2);
 
     return SizedBox(
@@ -743,15 +1005,12 @@ class _MesaBaseState extends State<MesaBase> {
           // 2. Las Sillas
           ...List.generate(widget.cantidadPersonas, (i) {
             final angle = (2 * pi / widget.cantidadPersonas) * i - pi / 2;
-            // Usamos la nueva distancia ajustada
             final dx = chairCenterDistance * cos(angle);
             final dy = chairCenterDistance * sin(angle);
 
-            // Determina si esta silla teórica está ocupada
             final bool isComensalPresent = comensales != null && i < comensales;
 
             return Positioned(
-              // El centro de la silla se calcula desde el centro del Stack
               left: diametroTotal / 2 + dx - sillaSize / 2,
               top: diametroTotal / 2 + dy - sillaSize / 2,
               child: CircleAvatar(
@@ -770,26 +1029,21 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // 🔸 Diseño rectangular (con sillas funcionales)
   Widget _mesaRectangular(int? comensales, bool estaOcupada) {
     final List<Widget> comensalesWidgets = [];
 
-    // ✅ AJUSTE CLAVE: Distancia de la silla a la mesa
-    // (Radio de la silla (15) + GAP (5 unidades)) = 20
     final double separacion = 20;
-    final double sillaSize = 30; // Diámetro de la silla
+    final double sillaSize = 30;
 
-    // Calcula la cantidad de sillas que irán en los lados largos (horizontalmente)
     int personasPorLadoLargo = 0;
     if (widget.cantidadPersonas == 4 || widget.cantidadPersonas == 6) {
-      personasPorLadoLargo = 2; // Dos en cada lado largo
+      personasPorLadoLargo = 2;
     } else if (widget.cantidadPersonas == 8) {
       personasPorLadoLargo = 3;
     } else if (widget.cantidadPersonas == 10) {
       personasPorLadoLargo = 4;
     }
 
-    // Lógica para distribuir las sillas
     int comensalesCount = comensales ?? 0;
     int sillaIndex = 0;
 
@@ -823,7 +1077,7 @@ class _MesaBaseState extends State<MesaBase> {
       );
     }
 
-    // Lados Cortos (Izquierda y Derecha) - (Depende de la capacidad total)
+    // Lados Cortos (Izquierda y Derecha)
     int sillasRestantes = widget.cantidadPersonas - (personasPorLadoLargo * 2);
     if (sillasRestantes > 0) {
       // Izquierda
@@ -850,8 +1104,6 @@ class _MesaBaseState extends State<MesaBase> {
       }
     }
 
-    // Ajustamos el tamaño del contenedor Stack para incluir el espacio de las sillas
-    // Ancho total = ancho de la mesa + 2 * (separacion + radio de la silla)
     final double containerWidth =
         widget.ancho + 2 * (separacion + sillaSize / 2);
     final double containerHeight =
@@ -917,7 +1169,6 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // ✅ Método de construcción de silla con estado de ocupación
   Widget _buildComensal(
     double dx,
     double dy,
@@ -925,16 +1176,12 @@ class _MesaBaseState extends State<MesaBase> {
     int comensalesCount,
     double size,
   ) {
-    // La silla está ocupada si su índice es menor que el número de comensales.
     final bool isComensalPresent = index < comensalesCount;
 
-    // Recalcular el tamaño del contenedor para posicionar correctamente.
-    // Esto se usa para centrar el stack, no para calcular el tamaño.
     final double containerWidth = widget.ancho + 2 * (20 + 30 / 2);
     final double containerHeight = widget.alto + 2 * (20 + 30 / 2);
 
     return Positioned(
-      // Centramos la posición, luego aplicamos el desplazamiento (dx, dy)
       left: containerWidth / 2 + dx - (size / 2),
       top: containerHeight / 2 + dy - (size / 2),
       child: CircleAvatar(

@@ -29,6 +29,9 @@ class _ProductosScreenState extends State<ProductosScreen> {
   final _precioController = TextEditingController();
   final _categoriaController = TextEditingController();
 
+  // Controlador para el campo 'gramos'
+  final _gramosController = TextEditingController();
+
   // Variables para manejo de imágenes
   final ImagePicker _imagePicker = ImagePicker();
   XFile? _imagenSeleccionada;
@@ -41,23 +44,45 @@ class _ProductosScreenState extends State<ProductosScreen> {
   // ID del documento si estamos editando
   String? _productoIdEnEdicion;
 
-  // Lista de categorías predefinidas (puedes personalizarlas)
-  final List<String> _categoriasDisponibles = [
-    'Entradas',
-    'Platos Fuertes',
-    'Sopas',
-    'Ensaladas',
-    'Postres',
-    'Bebidas',
-    'Desayunos',
-    'Mariscos',
-    'Carnes',
-    'Pastas',
-    'Vegetariano',
-    'Especiales',
+  // Estado para la colección activa (platillos o bebidas)
+  String _collectionName = 'platillos';
+
+  // Lista de categorías para Platillos
+  final List<String> _platilloCategorias = [
+    'entradas',
+    'Todos',
+    'cortes prime',
+    'costillas',
+    'ensaladas',
+    'extras hamburguesas',
+    'molcajetes',
+    'papas rellenas',
+    'para todos',
+    'postres',
+    'queso fundido',
+    'sopas y pastas',
+    'tacos',
+    'volcanes',
+  ];
+
+  // Lista de categorías para Bebidas
+  final List<String> _bebidaCategorias = [
+    'cocteleria',
+    'cerveza',
+    'tequila',
+    'sin alcohol',
+    'brandy',
+    'whisky',
+    'mezcales',
+    'vinos',
   ];
 
   String? _categoriaSeleccionada;
+
+  // Campos de estado para los nuevos datos
+  bool _disponible = true;
+  String? _tipoSeseccionado;
+  final List<String> _tiposDisponibles = ['platillo', 'bebida'];
 
   @override
   void dispose() {
@@ -65,7 +90,30 @@ class _ProductosScreenState extends State<ProductosScreen> {
     _nombreController.dispose();
     _precioController.dispose();
     _categoriaController.dispose();
+    _gramosController.dispose();
     super.dispose();
+  }
+
+  // Helper para obtener el título dinámico de la pantalla
+  String _getCollectionTitle() {
+    if (_collectionName == 'platillos') {
+      return 'Catálogo de Platillos';
+    } else if (_collectionName == 'bebidas') {
+      return 'Catálogo de Bebidas';
+    }
+    return 'Catálogo de Productos';
+  }
+
+  // Helper para obtener el nombre del producto en singular
+  String _getProductName() {
+    return _collectionName == 'platillos' ? 'Platillo' : 'Bebida';
+  }
+
+  // Helper para obtener las categorías según la colección activa
+  List<String> _getAvailableCategories() {
+    return _collectionName == 'bebidas'
+        ? _bebidaCategorias
+        : _platilloCategorias;
   }
 
   // --- FUNCIONES DE IMAGEN ---
@@ -153,6 +201,9 @@ class _ProductosScreenState extends State<ProductosScreen> {
     _nombreController.clear();
     _precioController.clear();
     _categoriaController.clear();
+    _gramosController.clear();
+    _disponible = true;
+    _tipoSeseccionado = null;
     _categoriaSeleccionada = null;
     _productoIdEnEdicion = null;
     _imagenSeleccionada = null;
@@ -174,6 +225,17 @@ class _ProductosScreenState extends State<ProductosScreen> {
       return;
     }
 
+    // Validar que se haya seleccionado un tipo
+    if (_tipoSeseccionado == null || _tipoSeseccionado!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor seleccione un tipo (platillo/bebida)'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     // Evitar múltiples llamadas simultáneas
     if (_subiendoImagen) return;
 
@@ -183,6 +245,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
 
     try {
       final double precio = double.parse(_precioController.text);
+
+      // Gramos puede ser null, se parsea solo si hay texto
+      final int? gramos = _gramosController.text.trim().isNotEmpty
+          ? int.tryParse(_gramosController.text.trim())
+          : null;
 
       // Si hay una nueva imagen seleccionada, subirla a Cloudinary
       String? urlImagen = _urlImagenActual;
@@ -202,31 +269,35 @@ class _ProductosScreenState extends State<ProductosScreen> {
         'categoria': _categoriaSeleccionada,
         'url': urlImagen,
         'fechaActualizacion': FieldValue.serverTimestamp(),
+        // Añadir campos de disponible, gramos y tipo
+        'disponible': _disponible,
+        'gramos': gramos,
+        'tipo': _tipoSeseccionado,
       };
 
       if (_productoIdEnEdicion == null) {
-        // CREAR (C)
-        await _firestore.collection('platillos').add(datos);
+        // CREAR (C) - Colección dinámica
+        await _firestore.collection(_collectionName).add(datos);
         if (mounted) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Producto creado exitosamente'),
+            SnackBar(
+              content: Text('${_getProductName()} creado exitosamente'),
               backgroundColor: Colors.green,
             ),
           );
         }
       } else {
-        // ACTUALIZAR (U)
+        // ACTUALIZAR (U) - Colección dinámica
         await _firestore
-            .collection('platillos')
+            .collection(_collectionName)
             .doc(_productoIdEnEdicion)
             .update(datos);
         if (mounted) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Producto actualizado exitosamente'),
+            SnackBar(
+              content: Text('${_getProductName()} actualizado exitosamente'),
               backgroundColor: Colors.green,
             ),
           );
@@ -258,7 +329,9 @@ class _ProductosScreenState extends State<ProductosScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar eliminación'),
-        content: const Text('¿Está seguro de eliminar este producto?'),
+        content: Text(
+          '¿Está seguro de eliminar este ${_getProductName().toLowerCase()}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -276,10 +349,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
     if (confirmar != true) return;
 
     try {
-      await _firestore.collection('platillos').doc(productId).delete();
+      // Colección dinámica
+      await _firestore.collection(_collectionName).doc(productId).delete();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Producto eliminado'),
+        SnackBar(
+          content: Text('${_getProductName()} eliminado'),
           backgroundColor: Colors.red,
         ),
       );
@@ -296,7 +370,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   void nuevoProducto() {
     _limpiarFormulario();
     _mostrarDialogoProducto(
-      titulo: 'Nuevo Platillo',
+      titulo: 'Nuevo ${_getProductName()}',
       onGuardar: _guardarProducto,
     );
   }
@@ -308,12 +382,32 @@ class _ProductosScreenState extends State<ProductosScreen> {
     // Rellenar controladores con datos existentes
     _nombreController.text = data['nombre'] ?? '';
     _precioController.text = (data['precio'] ?? 0.0).toString();
-    _categoriaSeleccionada = data['categoria'];
+
+    // FIX: Validación de Categoría cargada vs Categorías disponibles
+    final String? loadedCategory = data['categoria'] as String?;
+    final availableCategories = _getAvailableCategories();
+
+    if (loadedCategory != null &&
+        availableCategories.contains(loadedCategory)) {
+      _categoriaSeleccionada = loadedCategory;
+    } else {
+      // Si la categoría no es válida para la colección actual, la reiniciamos.
+      _categoriaSeleccionada = null;
+    }
+
     _urlImagenActual = data['url'];
     _imagenSeleccionada = null;
 
+    // Cargar los campos adicionales para edición
+    _disponible = data['disponible'] as bool? ?? true;
+    _gramosController.text = (data['gramos'] ?? '').toString();
+    if (data['gramos'] == null || data['gramos'] == 0) {
+      _gramosController.text = '';
+    }
+    _tipoSeseccionado = data['tipo'] as String?;
+
     _mostrarDialogoProducto(
-      titulo: 'Editar Platillo',
+      titulo: 'Editar ${_getProductName()}',
       onGuardar: _guardarProducto,
     );
   }
@@ -367,9 +461,13 @@ class _ProductosScreenState extends State<ProductosScreen> {
                       // CAMPOS DE TEXTO
                       TextFormField(
                         controller: _nombreController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Nombre *',
-                          prefixIcon: Icon(Icons.restaurant_menu),
+                          prefixIcon: Icon(
+                            _collectionName == 'platillos'
+                                ? Icons.restaurant_menu
+                                : Icons.local_bar,
+                          ),
                         ),
                         validator: (v) =>
                             v!.isEmpty ? 'Ingrese un nombre' : null,
@@ -383,7 +481,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
                           labelText: 'Categoría *',
                           prefixIcon: Icon(Icons.category),
                         ),
-                        items: _categoriasDisponibles.map((categoria) {
+                        // Usa la lista dinámica de categorías (Platillos o Bebidas)
+                        items: _getAvailableCategories().map((categoria) {
                           return DropdownMenuItem(
                             value: categoria,
                             child: Text(categoria),
@@ -410,6 +509,65 @@ class _ProductosScreenState extends State<ProductosScreen> {
                             v!.isEmpty || double.tryParse(v) == null
                             ? 'Precio inválido'
                             : null,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // DROPDOWN DE TIPO
+                      DropdownButtonFormField<String>(
+                        value: _tipoSeseccionado,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo (Platillo/Bebida) *',
+                          prefixIcon: Icon(Icons.restaurant),
+                        ),
+                        items: _tiposDisponibles.map((tipo) {
+                          return DropdownMenuItem(
+                            value: tipo,
+                            child: Text(tipo),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            _tipoSeseccionado = value;
+                          });
+                        },
+                        validator: (v) =>
+                            v == null ? 'Seleccione el tipo de producto' : null,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // GRAMOS (Opcional)
+                      TextFormField(
+                        controller: _gramosController,
+                        decoration: const InputDecoration(
+                          labelText: 'Gramos (Opcional)',
+                          prefixIcon: Icon(Icons.fitness_center),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (v) =>
+                            v!.isNotEmpty && int.tryParse(v) == null
+                            ? 'Gramos inválidos (debe ser un número entero)'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // DISPONIBLE (Switch)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Disponible',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          Switch(
+                            value: _disponible,
+                            onChanged: (bool value) {
+                              setDialogState(() {
+                                _disponible = value;
+                              });
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -500,6 +658,39 @@ class _ProductosScreenState extends State<ProductosScreen> {
     );
   }
 
+  // Widget selector de colecciones
+  Widget _buildCollectionSelector(String title, String collection) {
+    return Expanded(
+      child: ElevatedButton(
+        onPressed: () {
+          if (mounted) {
+            setState(() {
+              _collectionName = collection;
+              _filtroBusqueda = '';
+              _searchController.clear();
+              // FIX: Reiniciar la categoría seleccionada para evitar el error de aserción al cambiar de vista
+              _categoriaSeleccionada = null;
+            });
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _collectionName == collection
+              ? Colors.blueAccent
+              : Colors.grey[300],
+          foregroundColor: _collectionName == collection
+              ? Colors.white
+              : Colors.black87,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: _collectionName == collection ? 5 : 0,
+        ),
+        child: Text(title, style: const TextStyle(fontSize: 16)),
+      ),
+    );
+  }
+
   // --- WIDGETS DE VISTA ---
 
   @override
@@ -507,9 +698,20 @@ class _ProductosScreenState extends State<ProductosScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: ContentCard(
-        title: 'Catálogo de Platillos',
+        // Título dinámico
+        title: _getCollectionTitle(),
         child: Column(
           children: [
+            // Selectores de Colección
+            Row(
+              children: [
+                _buildCollectionSelector('Platillos', 'platillos'),
+                const SizedBox(width: 16),
+                _buildCollectionSelector('Bebidas', 'bebidas'),
+              ],
+            ),
+            const SizedBox(height: 16),
+
             Row(
               children: [
                 Expanded(
@@ -535,7 +737,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ElevatedButton.icon(
                   onPressed: nuevoProducto,
                   icon: const Icon(Icons.add_box),
-                  label: const Text('Nuevo Platillo'),
+                  // Etiqueta dinámica
+                  label: Text('Nuevo ${_getProductName()}'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
@@ -561,7 +764,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
 
   Widget _buildProductsGrid() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('platillos').snapshots(),
+      // Colección dinámica
+      stream: _firestore.collection(_collectionName).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -589,8 +793,8 @@ class _ProductosScreenState extends State<ProductosScreen> {
               padding: const EdgeInsets.all(32.0),
               child: Text(
                 _filtroBusqueda.isEmpty
-                    ? 'No hay platillos registrados.'
-                    : 'No se encontraron platillos con "${_searchController.text}".',
+                    ? 'No hay ${_getProductName().toLowerCase()}s registrados.'
+                    : 'No se encontraron ${_getProductName().toLowerCase()}s con "${_searchController.text}".',
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             ),
@@ -631,11 +835,26 @@ class _ProductosScreenState extends State<ProductosScreen> {
     String categoria,
     String? imageUrl,
   ) {
+    final data = doc.data() as Map<String, dynamic>;
+
+    // Obtener 'disponible' con comprobación de tipo segura
+    final rawDisponible = data['disponible'];
+    final disponible = rawDisponible is bool ? rawDisponible : true;
+
+    // Obtener 'tipo' con comprobación de tipo segura
+    final rawTipo = data['tipo'];
+    final tipo = rawTipo is String ? rawTipo : 'platillo';
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        // Aplicar borde rojo si no está disponible
+        border: Border.all(
+          color: disponible
+              ? const Color(0xFFE2E8F0)
+              : Colors.red.withOpacity(0.5),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -647,56 +866,90 @@ class _ProductosScreenState extends State<ProductosScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // SECCIÓN DE IMAGEN
+          // SECCIÓN DE IMAGEN (Envuelta en Stack para el overlay de "No Disponible")
           Expanded(
             flex: 3,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child: Icon(
-                              Icons.restaurant_menu,
-                              size: 60,
-                              color: Color(0xFF3B82F6),
-                            ),
-                          ),
-                        );
-                      },
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[100],
+                              child: Center(
+                                // Usar icono basado en el tipo
+                                child: Icon(
+                                  tipo == 'bebida'
+                                      ? Icons.local_bar
+                                      : Icons.restaurant_menu,
+                                  size: 60,
+                                  color: const Color(0xFF3B82F6),
+                                ),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[100],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value:
+                                      loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
                           color: Colors.grey[100],
                           child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                  : null,
+                            // Usar icono basado en el tipo
+                            child: Icon(
+                              tipo == 'bebida'
+                                  ? Icons.local_bar
+                                  : Icons.restaurant_menu,
+                              size: 60,
+                              color: const Color(0xFF3B82F6),
                             ),
                           ),
-                        );
-                      },
-                    )
-                  : Container(
-                      color: Colors.grey[100],
+                        ),
+                ),
+                // Overlay de "NO DISPONIBLE"
+                if (!disponible)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                      ),
                       child: const Center(
-                        child: Icon(
-                          Icons.restaurant_menu,
-                          size: 60,
-                          color: Color(0xFF3B82F6),
+                        child: Text(
+                          'NO DISPONIBLE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
+                  ),
+              ],
             ),
           ),
 
