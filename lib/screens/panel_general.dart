@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:pos_system/widgets/stat_card.dart';
-import 'package:pos_system/widgets/content_card.dart';
 
 class PanelGeneralScreen extends StatefulWidget {
   const PanelGeneralScreen({Key? key}) : super(key: key);
@@ -14,424 +12,753 @@ class PanelGeneralScreen extends StatefulWidget {
 class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Calcular ventas del día actual desde movimientos de caja
-  Stream<double> _getVentasHoy() {
-    final DateTime ahora = DateTime.now();
-    final DateTime inicioDia = DateTime(ahora.year, ahora.month, ahora.day);
-    final DateTime finDia = inicioDia.add(const Duration(days: 1));
-
-    return _firestore
-        .collection('movimientos_caja')
-        .where('tipo', isEqualTo: 'ingreso')
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicioDia))
-        .where('fecha', isLessThan: Timestamp.fromDate(finDia))
-        .snapshots()
-        .map((snapshot) {
-          double total = 0;
-          for (var doc in snapshot.docs) {
-            final data = doc.data();
-            // Solo contar ventas (no otros ingresos)
-            final categoria = data['categoria'] as String?;
-            if (categoria != null &&
-                (categoria.startsWith('venta_') || categoria == 'propinas')) {
-              total += (data['monto'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-          return total;
-        });
-  }
-
-  // Contar total de productos
-  Stream<int> _getTotalProductos() {
-    return _firestore.collection('platillos').snapshots().map((snapshot) {
-      return snapshot.docs.length;
-    });
-  }
-
-  // Contar órdenes del día (movimientos de tipo ingreso con categoría de venta)
-  Stream<int> _getOrdenesHoy() {
-    final DateTime ahora = DateTime.now();
-    final DateTime inicioDia = DateTime(ahora.year, ahora.month, ahora.day);
-    final DateTime finDia = inicioDia.add(const Duration(days: 1));
-
-    return _firestore
-        .collection('movimientos_caja')
-        .where('tipo', isEqualTo: 'ingreso')
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicioDia))
-        .where('fecha', isLessThan: Timestamp.fromDate(finDia))
-        .snapshots()
-        .map((snapshot) {
-          // Contar solo ventas (no otros ingresos como propinas solas)
-          return snapshot.docs.where((doc) {
-            final categoria = doc.data()['categoria'] as String?;
-            return categoria != null && categoria.startsWith('venta_');
-          }).length;
-        });
-  }
-
-  // Obtener productos más vendidos (esto requeriría una colección adicional de ventas detalladas)
-  // Por ahora, mostramos categorías de ventas más frecuentes
-  Stream<List<Map<String, dynamic>>> _getCategoriasPopulares() {
-    final DateTime ahora = DateTime.now();
-    final DateTime hace30Dias = ahora.subtract(const Duration(days: 30));
-
-    return _firestore
-        .collection('movimientos_caja')
-        .where('tipo', isEqualTo: 'ingreso')
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(hace30Dias))
-        .snapshots()
-        .map((snapshot) {
-          // Contar ventas por categoría
-          Map<String, int> conteos = {};
-          Map<String, double> montos = {};
-
-          for (var doc in snapshot.docs) {
-            final data = doc.data();
-            final categoria = data['categoria'] as String?;
-            final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
-
-            if (categoria != null && categoria.startsWith('venta_')) {
-              conteos[categoria] = (conteos[categoria] ?? 0) + 1;
-              montos[categoria] = (montos[categoria] ?? 0.0) + monto;
-            }
-          }
-
-          // Convertir a lista y ordenar por cantidad de ventas
-          List<Map<String, dynamic>> resultado = [];
-          conteos.forEach((categoria, cantidad) {
-            resultado.add({
-              'categoria': categoria,
-              'cantidad': cantidad,
-              'monto': montos[categoria] ?? 0.0,
-            });
-          });
-
-          resultado.sort(
-            (a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int),
-          );
-          return resultado.take(4).toList();
-        });
-  }
-
-  String _formatearCategoria(String categoria) {
-    switch (categoria) {
-      case 'venta_efectivo':
-        return 'Ventas en Efectivo';
-      case 'venta_tarjeta':
-        return 'Ventas con Tarjeta';
-      case 'venta_transferencia':
-        return 'Ventas por Transferencia';
-      default:
-        return categoria.replaceAll('_', ' ').toUpperCase();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        children: [
-          // Stats Cards
-          Row(
-            children: [
-              Expanded(
-                child: StreamBuilder<double>(
-                  stream: _getVentasHoy(),
-                  builder: (context, snapshot) {
-                    final ventas = snapshot.data ?? 0.0;
-                    return StatCard(
-                      title: 'Ventas Hoy',
-                      value: '\$${ventas.toStringAsFixed(2)}',
-                      icon: Icons.trending_up,
-                      color: Colors.green,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: StreamBuilder<int>(
-                  stream: _getTotalProductos(),
-                  builder: (context, snapshot) {
-                    final productos = snapshot.data ?? 0;
-                    return StatCard(
-                      title: 'Productos',
-                      value: '$productos',
-                      icon: Icons.inventory_2,
-                      color: Colors.blue,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: StatCard(
-                  title: 'Clientes',
-                  value: '-',
-                  icon: Icons.people,
-                  color: Colors.purple,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: StreamBuilder<int>(
-                  stream: _getOrdenesHoy(),
-                  builder: (context, snapshot) {
-                    final ordenes = snapshot.data ?? 0;
-                    return StatCard(
-                      title: 'Órdenes',
-                      value: '$ordenes',
-                      icon: Icons.shopping_cart,
-                      color: Colors.orange,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Charts Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: ContentCard(
-                  title: 'Ventas Recientes',
-                  child: _buildVentasRecientes(),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ContentCard(
-                  title: 'Métodos de Pago Populares',
-                  child: StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: _getCategoriasPopulares(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32.0),
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32.0),
-                            child: Text(
-                              'No hay datos disponibles',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        );
-                      }
-
-                      return Column(
-                        children: snapshot.data!.map((item) {
-                          return _buildProductItem(
-                            _formatearCategoria(item['categoria']),
-                            item['cantidad'],
-                            item['monto'],
-                          );
-                        }).toList(),
-                      );
-                    },
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Tarjetas principales de métricas
+            _buildMetricasHoy(),
+            const SizedBox(height: 24),
+            // Secciones inferiores
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    children: [
+                      _buildVentasRecientes(),
+                      const SizedBox(height: 24),
+                      _buildCuentasAbiertas(),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 24),
+                Expanded(flex: 1, child: _buildEstadoCaja()),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildVentasRecientes() {
+  // Tarjetas principales de métricas
+  Widget _buildMetricasHoy() {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
           .collection('movimientos_caja')
           .where('tipo', isEqualTo: 'ingreso')
+          .where(
+            'fecha',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_getStartOfDay()),
+            isLessThan: Timestamp.fromDate(_getEndOfDay()),
+          )
           .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 300,
-            child: Center(child: CircularProgressIndicator()),
-          );
+      builder: (context, ventasSnapshot) {
+        double ventasHoy = 0;
+        int ticketsGenerados = 0;
+
+        if (ventasSnapshot.hasData) {
+          for (var doc in ventasSnapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final categoria = data['categoria'] as String?;
+
+            if (categoria != null && categoria.startsWith('venta_')) {
+              ventasHoy += (data['monto'] as num?)?.toDouble() ?? 0.0;
+              ticketsGenerados++;
+            }
+          }
         }
 
-        if (snapshot.hasError) {
-          return SizedBox(
-            height: 300,
-            child: Center(
-              child: Text(
-                'Error al cargar datos',
-                style: TextStyle(color: Colors.red[600]),
-              ),
-            ),
-          );
-        }
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firestore
+              .collection('usuarios')
+              .where('activo', isEqualTo: true)
+              .where('rol', whereIn: ['mesero', 'cajero'])
+              .snapshots(),
+          builder: (context, personalSnapshot) {
+            int personalActivo = personalSnapshot.data?.docs.length ?? 0;
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox(
-            height: 300,
-            child: Center(
-              child: Text(
-                'No hay ventas registradas',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        }
+            return StreamBuilder<QuerySnapshot>(
+              stream: _firestore.collection('platillos').snapshots(),
+              builder: (context, productosSnapshot) {
+                int totalProductos = productosSnapshot.data?.docs.length ?? 0;
 
-        // Ordenar por fecha (más reciente primero)
-        final docs = snapshot.data!.docs.toList();
-        docs.sort((a, b) {
-          final fechaA =
-              (a.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-          final fechaB =
-              (b.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
-
-          if (fechaA == null && fechaB == null) return 0;
-          if (fechaA == null) return 1;
-          if (fechaB == null) return -1;
-
-          return fechaB.compareTo(fechaA);
-        });
-
-        // Tomar solo las 10 más recientes
-        final ventasRecientes = docs.take(10).toList();
-
-        return SizedBox(
-          height: 300,
-          child: ListView.builder(
-            itemCount: ventasRecientes.length,
-            itemBuilder: (context, index) {
-              final doc = ventasRecientes[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final categoria = data['categoria'] ?? '';
-              final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
-              final descripcion = data['descripcion'] ?? '';
-              final fecha = data['fecha'] as Timestamp?;
-              final cajero = data['cajero'] ?? 'Desconocido';
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                elevation: 1,
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.green.shade100,
-                    child: const Icon(
+                return Row(
+                  children: [
+                    _buildMetricCard(
+                      'Ventas Hoy',
+                      '\$${NumberFormat('#,##0.00').format(ventasHoy)}',
                       Icons.attach_money,
-                      color: Colors.green,
-                      size: 20,
+                      const Color(0xFF10B981),
+                      ventasSnapshot.hasData,
                     ),
-                  ),
-                  title: Text(
-                    _formatearCategoria(categoria),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                    const SizedBox(width: 16),
+                    _buildMetricCard(
+                      'Personal Activo',
+                      '$personalActivo',
+                      Icons.people,
+                      const Color(0xFF3B82F6),
+                      personalSnapshot.hasData,
                     ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (descripcion.isNotEmpty)
-                        Text(
-                          descripcion,
-                          style: const TextStyle(fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      Text(
-                        'Cajero: $cajero',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                      if (fecha != null)
-                        Text(
-                          DateFormat('dd/MM/yyyy HH:mm').format(fecha.toDate()),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                    const SizedBox(width: 16),
+                    _buildMetricCard(
+                      'Productos Vendidos',
+                      '$totalProductos',
+                      Icons.shopping_bag,
+                      const Color(0xFFF59E0B),
+                      productosSnapshot.hasData,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.green.shade200),
+                    const SizedBox(width: 16),
+                    _buildMetricCard(
+                      'Tickets Generados',
+                      '$ticketsGenerados',
+                      Icons.receipt_long,
+                      const Color(0xFF8B5CF6),
+                      ventasSnapshot.hasData,
                     ),
-                    child: Text(
-                      '\$${monto.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+                  ],
+                );
+              },
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildProductItem(String name, int cantidad, double monto) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    bool isLoaded,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            isLoaded
+                ? Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  )
+                : const SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Ventas Recientes basado en movimientos_caja
+  Widget _buildVentasRecientes() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Ventas Recientes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
                   ),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Chip(
-                    label: Text('$cantidad ventas'),
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    labelStyle: const TextStyle(fontSize: 11),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Ver todas'),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('movimientos_caja')
+                .where('tipo', isEqualTo: 'ingreso')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${monto.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
+                );
+              }
+
+              // Filtrar solo ventas y ordenar
+              final docs = snapshot.data!.docs.where((doc) {
+                final categoria =
+                    (doc.data() as Map<String, dynamic>)['categoria']
+                        as String?;
+                return categoria != null && categoria.startsWith('venta_');
+              }).toList();
+
+              docs.sort((a, b) {
+                final fechaA =
+                    (a.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
+                final fechaB =
+                    (b.data() as Map<String, dynamic>)['fecha'] as Timestamp?;
+                if (fechaA == null && fechaB == null) return 0;
+                if (fechaA == null) return 1;
+                if (fechaB == null) return -1;
+                return fechaB.compareTo(fechaA);
+              });
+
+              if (docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(
+                    child: Text(
+                      'No hay ventas registradas',
+                      style: TextStyle(color: Color(0xFF94A3B8)),
                     ),
                   ),
-                ],
-              ),
-            ],
+                );
+              }
+
+              final ventasRecientes = docs.take(5).toList();
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: ventasRecientes.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final data =
+                      ventasRecientes[index].data() as Map<String, dynamic>;
+                  final categoria = data['categoria'] ?? '';
+                  final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
+                  final descripcion = data['descripcion'] ?? '';
+                  final timestamp = data['fecha'] as Timestamp?;
+                  final fecha = timestamp?.toDate() ?? DateTime.now();
+                  final cajero = data['cajero'] ?? 'Desconocido';
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.receipt,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                    title: Text(
+                      _formatearCategoria(categoria),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (descripcion.isNotEmpty)
+                          Text(
+                            descripcion,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        Text(
+                          'Cajero: $cajero • ${DateFormat('dd/MM/yyyy HH:mm').format(fecha)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Text(
+                      '\$${NumberFormat('#,##0.00').format(monto)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
-          const Divider(height: 16),
         ],
       ),
     );
+  }
+
+  String _formatearCategoria(String categoria) {
+    switch (categoria) {
+      case 'venta_efectivo':
+        return 'Venta en Efectivo';
+      case 'venta_tarjeta':
+        return 'Venta con Tarjeta';
+      case 'venta_transferencia':
+        return 'Venta por Transferencia';
+      default:
+        return categoria.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
+  // Estado de Caja
+  Widget _buildEstadoCaja() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Estado de Caja',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('cajas')
+                .where('estado', isEqualTo: 'abierta')
+                .where(
+                  'fecha',
+                  isGreaterThanOrEqualTo: Timestamp.fromDate(_getStartOfDay()),
+                  isLessThan: Timestamp.fromDate(_getEndOfDay()),
+                )
+                .limit(1)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (snapshot.data!.docs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Color(0xFFF59E0B)),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No hay caja abierta',
+                                style: TextStyle(color: Color(0xFFF59E0B)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.add),
+                        label: const Text('Abrir Caja'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3B82F6),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final caja =
+                  snapshot.data!.docs.first.data() as Map<String, dynamic>;
+              final timestamp = caja['fechaApertura'] as Timestamp?;
+              final fechaApertura = timestamp?.toDate() ?? DateTime.now();
+
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Color(0xFF10B981)),
+                          SizedBox(width: 12),
+                          Text(
+                            'Caja Abierta',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildCajaDetailRow(
+                      'Cajero',
+                      caja['nombreCajero'] ?? 'N/A',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCajaDetailRow(
+                      'Apertura',
+                      DateFormat('dd/MM/yyyy HH:mm').format(fechaApertura),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCajaDetailRow(
+                      'Monto Inicial',
+                      '\$${NumberFormat('#,##0.00').format((caja['montoInicial'] as num?)?.toDouble() ?? 0)}',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCajaDetailRow(
+                      'Ventas del día',
+                      '\$${NumberFormat('#,##0.00').format((caja['ventasDelDia'] as num?)?.toDouble() ?? 0)}',
+                    ),
+                    const Divider(height: 32),
+                    _buildCajaDetailRow(
+                      'Total en Caja',
+                      '\$${NumberFormat('#,##0.00').format(((caja['montoInicial'] as num?)?.toDouble() ?? 0) + ((caja['ventasDelDia'] as num?)?.toDouble() ?? 0))}',
+                      isTotal: true,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCajaDetailRow(
+    String label,
+    String value, {
+    bool isTotal = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isTotal ? 16 : 14,
+            color: const Color(0xFF64748B),
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isTotal ? 18 : 14,
+            fontWeight: FontWeight.bold,
+            color: isTotal ? const Color(0xFF10B981) : const Color(0xFF1E293B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Cuentas Abiertas (Mesas)
+  Widget _buildCuentasAbiertas() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Cuentas Abiertas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Ver todas'),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('cuentas')
+                .where('estado', isEqualTo: 'abierta')
+                .orderBy('fechaApertura', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.data!.docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(
+                    child: Text(
+                      'No hay cuentas abiertas',
+                      style: TextStyle(color: Color(0xFF94A3B8)),
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: snapshot.data!.docs.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final cuenta =
+                      snapshot.data!.docs[index].data() as Map<String, dynamic>;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              cuenta['mesa']?.toString() ?? 'N/A',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF3B82F6),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Folio: ${cuenta['folio'] ?? 'N/A'}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.person,
+                                    size: 14,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${cuenta['comensales'] ?? 0} comensales',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Icon(
+                                    Icons.restaurant_menu,
+                                    size: 14,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${cuenta['items'] ?? 0} items',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Mesero: ${cuenta['nombreMesero'] ?? 'N/A'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Abierta',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Funciones auxiliares para fechas
+  DateTime _getStartOfDay() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 0, 0, 0);
+  }
+
+  DateTime _getEndOfDay() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 23, 59, 59);
   }
 }

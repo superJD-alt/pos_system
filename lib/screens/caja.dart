@@ -26,10 +26,11 @@ class _CajaScreenState extends State<CajaScreen> {
   // Control de usuarios autorizados (solo para el Dropdown en el cierre)
   List<Map<String, dynamic>> _usuariosAutorizados = [];
 
-  // Formateador de moneda
+  // CAMBIO: Formato de moneda corregido (en_US usa coma para miles y punto para decimales)
   final NumberFormat currencyFormat = NumberFormat.currency(
-    locale: 'es_CL',
+    locale: 'en_US', // Cambio de 'es_CL' a 'en_US'
     symbol: '\$',
+    decimalDigits: 2,
   );
 
   // Formateador de fecha
@@ -223,9 +224,7 @@ class _CajaScreenState extends State<CajaScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'mañana', child: Text('Mañana')),
                       DropdownMenuItem(value: 'tarde', child: Text('Tarde')),
-                      DropdownMenuItem(value: 'noche', child: Text('Noche')),
                     ],
                     onChanged: (v) =>
                         setDialogState(() => turnoSeleccionado = v!),
@@ -333,6 +332,7 @@ class _CajaScreenState extends State<CajaScreen> {
       'venta_efectivo': 'Venta en Efectivo',
       'venta_tarjeta': 'Venta con Tarjeta',
       'venta_transferencia': 'Venta por Transferencia',
+      'venta_paraLlevar': 'Venta para Llevar',
       'propinas': 'Propinas',
       'otros_ingresos': 'Otros Ingresos',
     };
@@ -455,7 +455,8 @@ class _CajaScreenState extends State<CajaScreen> {
       // Tarjeta y Transferencia aumentan los totales, pero no el efectivo físico esperado.
 
       if (tipo == 'ingreso') {
-        if (categoria == 'venta_efectivo') {
+        if (categoria == 'venta_efectivo' || categoria == 'venta_paraLlevar') {
+          // Tanto ventas en efectivo como para llevar incrementan el efectivo esperado
           await cajaRef.update({
             'total_efectivo': FieldValue.increment(monto),
             'efectivo_esperado': FieldValue.increment(monto),
@@ -467,9 +468,6 @@ class _CajaScreenState extends State<CajaScreen> {
             'total_transferencia': FieldValue.increment(monto),
           });
         } else if (categoria == 'propinas') {
-          // Si las propinas son en efectivo, deberían incrementar el efectivo esperado.
-          // Por simplicidad, asumiremos que las propinas en efectivo se registran como 'venta_efectivo'
-          // si son parte de una venta, y solo se registra el total_propinas aquí si son de otra fuente.
           await cajaRef.update({'total_propinas': FieldValue.increment(monto)});
         }
       } else {
@@ -846,26 +844,6 @@ class _CajaScreenState extends State<CajaScreen> {
                       ),
                     ),
                   ),
-                  // El botón de movimientos ahora solo dirige la vista al widget de abajo
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Consulta la sección "Movimientos del Día" abajo.',
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.receipt_long),
-                    label: const Text('Ver Movimientos'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
                   ElevatedButton.icon(
                     onPressed: _mostrarDialogoCierreCaja,
                     icon: const Icon(Icons.lock),
@@ -1048,6 +1026,7 @@ class _CajaScreenState extends State<CajaScreen> {
       'venta_efectivo': 'Venta Efectivo',
       'venta_tarjeta': 'Venta Tarjeta',
       'venta_transferencia': 'Venta Transferencia',
+      'venta_paraLlevar': 'Venta Para Llevar',
       'propinas': 'Propinas',
       'otros_ingresos': 'Otros Ingresos',
       'compra_ingredientes': 'Compra Ingredientes',

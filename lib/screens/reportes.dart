@@ -20,7 +20,7 @@ class ReportesScreen extends StatefulWidget {
 class _ReportesScreenState extends State<ReportesScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final NumberFormat currencyFormat = NumberFormat.currency(
-    locale: 'es_CL',
+    locale: 'es_US',
     symbol: '\$',
   );
 

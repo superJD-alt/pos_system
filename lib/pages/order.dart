@@ -1558,14 +1558,14 @@ class _OrderPageState extends State<OrderPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const int crossAxisCount = 4;
-                const double mainAxisSpacing = 6; // ✅ Reducido de 8 a 6
-                const double crossAxisSpacing = 6; // ✅ Reducido de 8 a 6
+                const double mainAxisSpacing = 7; // ✅ Reducido de 8 a 6
+                const double crossAxisSpacing = 7; // ✅ Reducido de 8 a 6
 
                 final double itemWidth =
                     (constraints.maxWidth -
                         crossAxisSpacing * (crossAxisCount - 1)) /
                     crossAxisCount;
-                const double desiredItemHeight = 50.0; // ✅ Reducido de 65 a 50
+                const double desiredItemHeight = 65.0; // ✅ Reducido de 65 a 50
                 final double responsiveChildAspectRatio =
                     itemWidth / desiredItemHeight;
 
