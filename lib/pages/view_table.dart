@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ← Importación necesaria
+import 'package:flutter/services.dart';
 import 'mesa_state.dart';
 
 class ViewTable extends StatefulWidget {
@@ -30,7 +30,7 @@ class _ViewTableState extends State<ViewTable> {
       backgroundColor: Colors.grey[300],
       body: Stack(
         children: [
-          //mesa 1 (2 personas)
+          //mesa 4 (2 personas)
           Positioned(
             left: screenWidth * 0.59,
             top: screenHeight * 0.38,
@@ -38,10 +38,10 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 2,
               ancho: 80,
               alto: 80,
-              numeroMesa: 4,
+              numeroMesa: 8,
             ),
           ),
-          //mesa 2 (2 personas)
+          //mesa 3 (2 personas)
           Positioned(
             left: screenWidth * 0.59,
             top: screenHeight * 0.08,
@@ -52,7 +52,29 @@ class _ViewTableState extends State<ViewTable> {
               numeroMesa: 3,
             ),
           ),
-          // mesa 3 (4 personas)
+          // ✅ NUEVA MESA 14 (2 personas)
+          Positioned(
+            left: screenWidth * 0.72,
+            top: screenHeight * 0.08,
+            child: const MesaBase(
+              cantidadPersonas: 2,
+              ancho: 80,
+              alto: 80,
+              numeroMesa: 2,
+            ),
+          ),
+          // ✅ NUEVA MESA 15 (2 personas)
+          Positioned(
+            left: screenWidth * 0.82,
+            top: screenHeight * 0.08,
+            child: const MesaBase(
+              cantidadPersonas: 2,
+              ancho: 80,
+              alto: 80,
+              numeroMesa: 1,
+            ),
+          ),
+          // mesa 2 (4 personas)
           Positioned(
             left: screenWidth * 0.70,
             top: screenHeight * 0.59,
@@ -60,10 +82,10 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 4,
               ancho: 200,
               alto: 80,
-              numeroMesa: 2,
+              numeroMesa: 12,
             ),
           ),
-          //mesa 4 (4 personas)
+          //mesa 6 (4 personas)
           Positioned(
             left: screenWidth * 0.35,
             top: screenHeight * 0.33,
@@ -71,7 +93,7 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 4,
               ancho: 150,
               alto: 80,
-              numeroMesa: 6,
+              numeroMesa: 7,
             ),
           ),
           //mesa 5 (6 personas)
@@ -82,21 +104,21 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 6,
               ancho: 160,
               alto: 80,
-              numeroMesa: 5,
+              numeroMesa: 4,
             ),
           ),
-          //mesa 6 (6 personas)
+          // ✅ MESA 1 REUBICADA (6 personas - debajo de las mesas 14 y 15)
           Positioned(
             left: screenWidth * 0.72,
-            top: screenHeight * 0.18,
+            top: screenHeight * 0.35,
             child: const MesaBase(
               cantidadPersonas: 6,
               ancho: 160,
               alto: 80,
-              numeroMesa: 1,
+              numeroMesa: 9,
             ),
           ),
-          //mesa 7 (8 personas)
+          //mesa 9 (8 personas)
           Positioned(
             left: screenWidth * 0.06,
             top: screenHeight * 0.33,
@@ -104,10 +126,10 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 8,
               ancho: 200,
               alto: 80,
-              numeroMesa: 9,
+              numeroMesa: 6,
             ),
           ),
-          //mesa 8 (8 personas)
+          //mesa 10 (8 personas)
           Positioned(
             left: screenWidth * 0.06,
             top: screenHeight * 0.58,
@@ -118,7 +140,7 @@ class _ViewTableState extends State<ViewTable> {
               numeroMesa: 10,
             ),
           ),
-          //mesa 9 (8 personas)
+          //mesa 8 (8 personas)
           Positioned(
             left: screenWidth * 0.06,
             top: screenHeight * 0.08,
@@ -126,10 +148,10 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 8,
               ancho: 200,
               alto: 80,
-              numeroMesa: 8,
+              numeroMesa: 5,
             ),
           ),
-          //mesa 10 (10 personas)
+          //mesa 7 (10 personas)
           Positioned(
             left: screenWidth * 0.35,
             top: screenHeight * 0.58,
@@ -137,7 +159,7 @@ class _ViewTableState extends State<ViewTable> {
               cantidadPersonas: 10,
               ancho: 260,
               alto: 90,
-              numeroMesa: 7,
+              numeroMesa: 11,
             ),
           ),
         ],
@@ -170,7 +192,6 @@ class MesaBase extends StatefulWidget {
 class _MesaBaseState extends State<MesaBase> {
   final MesaState mesaState = MesaState();
 
-  // ✅ MODIFICADO: Solo mostrar información, sin permitir aperturar
   void _mostrarInformacionMesa() {
     final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
@@ -193,7 +214,6 @@ class _MesaBaseState extends State<MesaBase> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Estado de la mesa
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -238,8 +258,6 @@ class _MesaBaseState extends State<MesaBase> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Información adicional
             Row(
               children: [
                 const Icon(Icons.chair, color: Colors.grey, size: 20),
@@ -250,7 +268,6 @@ class _MesaBaseState extends State<MesaBase> {
                 ),
               ],
             ),
-
             if (!mesaOcupada) ...[
               const SizedBox(height: 12),
               Container(
@@ -292,14 +309,13 @@ class _MesaBaseState extends State<MesaBase> {
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
     return GestureDetector(
-      onTap: _mostrarInformacionMesa, // ✅ MODIFICADO: Solo mostrar info
+      onTap: _mostrarInformacionMesa,
       child: esCircular
           ? _mesaCircular(comensales, estaOcupada)
           : _mesaRectangular(comensales, estaOcupada),
     );
   }
 
-  // 🔹 Diseño circular
   Widget _mesaCircular(int? comensales, bool estaOcupada) {
     double radio = (max(widget.ancho, widget.alto) / 2) + 30;
     double diametroTotal = (radio + 20) * 2;
@@ -314,7 +330,6 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              // VERDE = disponible, ROJO = ocupada
               color: estaOcupada ? Colors.red : Colors.green,
               borderRadius: BorderRadius.circular(40),
               boxShadow: [
@@ -371,7 +386,6 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  // 🔸 Diseño rectangular
   Widget _mesaRectangular(int? comensales, bool estaOcupada) {
     const double separacion = 20;
     List<Widget> comensalesWidgets = [];
@@ -409,7 +423,6 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              // VERDE = disponible, ROJO = ocupada
               color: estaOcupada ? Colors.red : Colors.green,
               borderRadius: BorderRadius.circular(6),
               boxShadow: [

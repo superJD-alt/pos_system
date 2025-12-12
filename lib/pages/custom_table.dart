@@ -15,7 +15,7 @@ class _CustomTableState extends State<CustomTable> {
   @override
   void initState() {
     super.initState();
-    print('🔓 Permitiendo todas las orientaciones');
+    print('📱 Permitiendo todas las orientaciones');
     _setOrientation([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -26,7 +26,7 @@ class _CustomTableState extends State<CustomTable> {
 
   @override
   void dispose() {
-    print('🔓 Manteniendo todas las orientaciones');
+    print('📱 Manteniendo todas las orientaciones');
     super.dispose();
   }
 
@@ -115,7 +115,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 2,
             ancho: 90,
             alto: 90,
-            numeroMesa: 4,
+            numeroMesa: 8, //
           ),
         ),
         Positioned(
@@ -125,7 +125,29 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 2,
             ancho: 90,
             alto: 90,
-            numeroMesa: 3,
+            numeroMesa: 3, //
+          ),
+        ),
+        // Mesa de 2 personas
+        Positioned(
+          left: width * 0.72,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 90,
+            alto: 90,
+            numeroMesa: 2, //
+          ),
+        ),
+        // Mesa de 2 personas
+        Positioned(
+          left: width * 0.82,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 90,
+            alto: 90,
+            numeroMesa: 1, //
           ),
         ),
         // Mesas de 4 personas
@@ -136,7 +158,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 220,
             alto: 90,
-            numeroMesa: 2,
+            numeroMesa: 12,
           ),
         ),
         Positioned(
@@ -146,7 +168,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 4,
             ancho: 170,
             alto: 90,
-            numeroMesa: 6,
+            numeroMesa: 7,
           ),
         ),
         // Mesas de 6 personas
@@ -157,17 +179,18 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 6,
             ancho: 180,
             alto: 90,
-            numeroMesa: 5,
+            numeroMesa: 4,
           ),
         ),
+        // Mesa 9
         Positioned(
           left: width * 0.72,
-          top: height * 0.18,
+          top: height * 0.35,
           child: const MesaBase(
             cantidadPersonas: 6,
             ancho: 180,
             alto: 90,
-            numeroMesa: 1,
+            numeroMesa: 9,
           ),
         ),
         // Mesas de 8 personas
@@ -178,7 +201,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 8,
             ancho: 220,
             alto: 90,
-            numeroMesa: 9,
+            numeroMesa: 6, //
           ),
         ),
         Positioned(
@@ -198,7 +221,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 8,
             ancho: 220,
             alto: 90,
-            numeroMesa: 8,
+            numeroMesa: 5,
           ),
         ),
         // Mesa de 10 personas
@@ -209,7 +232,7 @@ class _CustomTableState extends State<CustomTable> {
             cantidadPersonas: 10,
             ancho: 280,
             alto: 100,
-            numeroMesa: 7,
+            numeroMesa: 11,
           ),
         ),
       ],
@@ -238,6 +261,27 @@ class _CustomTableState extends State<CustomTable> {
             ancho: 75,
             alto: 75,
             numeroMesa: 3,
+          ),
+        ),
+        // ✅ NUEVAS MESAS DE 2 PERSONAS (14 y 15)
+        Positioned(
+          left: width * 0.70,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 75,
+            alto: 75,
+            numeroMesa: 11,
+          ),
+        ),
+        Positioned(
+          left: width * 0.82,
+          top: height * 0.08,
+          child: const MesaBase(
+            cantidadPersonas: 2,
+            ancho: 75,
+            alto: 75,
+            numeroMesa: 12,
           ),
         ),
         Positioned(
@@ -270,9 +314,10 @@ class _CustomTableState extends State<CustomTable> {
             numeroMesa: 5,
           ),
         ),
+        // ✅ MESA 1 REUBICADA
         Positioned(
           left: width * 0.72,
-          top: height * 0.18,
+          top: height * 0.35,
           child: const MesaBase(
             cantidadPersonas: 6,
             ancho: 150,
@@ -353,6 +398,27 @@ class _CustomTableState extends State<CustomTable> {
                 numeroMesa: 3,
               ),
             ),
+            // ✅ NUEVAS MESAS DE 2 PERSONAS (14 y 15)
+            Positioned(
+              left: width * 0.85,
+              top: height * 0.02,
+              child: const MesaBase(
+                cantidadPersonas: 2,
+                ancho: 60,
+                alto: 60,
+                numeroMesa: 14,
+              ),
+            ),
+            Positioned(
+              left: width * 1.00,
+              top: height * 0.02,
+              child: const MesaBase(
+                cantidadPersonas: 2,
+                ancho: 60,
+                alto: 60,
+                numeroMesa: 15,
+              ),
+            ),
             Positioned(
               left: width * 0.85,
               top: height * 0.59,
@@ -383,9 +449,10 @@ class _CustomTableState extends State<CustomTable> {
                 numeroMesa: 5,
               ),
             ),
+            // ✅ MESA 1 REUBICADA
             Positioned(
               left: width * 0.85,
-              top: height * 0.18,
+              top: height * 0.25,
               child: const MesaBase(
                 cantidadPersonas: 6,
                 ancho: 130,
@@ -595,6 +662,27 @@ class _CustomTableState extends State<CustomTable> {
                 ancho: width * 0.75,
                 alto: baseSize * 1.0,
                 numeroMesa: 7,
+              ),
+            ),
+            // ✅ NUEVAS MESAS DE 2 PERSONAS (14 y 15)
+            Positioned(
+              left: width * 0.08,
+              top: height * 0.95,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 14,
+              ),
+            ),
+            Positioned(
+              right: width * 0.08,
+              top: height * 0.95,
+              child: MesaBase(
+                cantidadPersonas: 2,
+                ancho: smallTable,
+                alto: smallTable,
+                numeroMesa: 15,
               ),
             ),
           ],
@@ -961,7 +1049,6 @@ class _MesaBaseState extends State<MesaBase> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 1. La Mesa
           Container(
             width: widget.ancho,
             height: widget.alto,
@@ -1002,7 +1089,6 @@ class _MesaBaseState extends State<MesaBase> {
               ),
             ),
           ),
-          // 2. Las Sillas
           ...List.generate(widget.cantidadPersonas, (i) {
             final angle = (2 * pi / widget.cantidadPersonas) * i - pi / 2;
             final dx = chairCenterDistance * cos(angle);
@@ -1047,9 +1133,7 @@ class _MesaBaseState extends State<MesaBase> {
     int comensalesCount = comensales ?? 0;
     int sillaIndex = 0;
 
-    // Lados Largos (Arriba y Abajo)
     for (int i = 0; i < personasPorLadoLargo; i++) {
-      // Arriba
       double x_top =
           (widget.ancho / (personasPorLadoLargo + 1)) * (i + 1) -
           widget.ancho / 2;
@@ -1062,7 +1146,6 @@ class _MesaBaseState extends State<MesaBase> {
           sillaSize,
         ),
       );
-      // Abajo
       double x_bottom =
           (widget.ancho / (personasPorLadoLargo + 1)) * (i + 1) -
           widget.ancho / 2;
@@ -1077,10 +1160,8 @@ class _MesaBaseState extends State<MesaBase> {
       );
     }
 
-    // Lados Cortos (Izquierda y Derecha)
     int sillasRestantes = widget.cantidadPersonas - (personasPorLadoLargo * 2);
     if (sillasRestantes > 0) {
-      // Izquierda
       comensalesWidgets.add(
         _buildComensal(
           -widget.ancho / 2 - separacion,
@@ -1091,7 +1172,6 @@ class _MesaBaseState extends State<MesaBase> {
         ),
       );
       if (sillasRestantes > 1) {
-        // Derecha
         comensalesWidgets.add(
           _buildComensal(
             widget.ancho / 2 + separacion,
@@ -1121,7 +1201,6 @@ class _MesaBaseState extends State<MesaBase> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 1. La Mesa
           Container(
             width: widget.ancho,
             height: widget.alto,
@@ -1162,7 +1241,6 @@ class _MesaBaseState extends State<MesaBase> {
               ),
             ),
           ),
-          // 2. Las Sillas
           ...comensalesWidgets,
         ],
       ),

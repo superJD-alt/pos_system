@@ -18,22 +18,18 @@ class _CajaScreenState extends State<CajaScreen> {
   Map<String, dynamic>? _cajaActual;
   bool _cargando = true;
 
-  // Estado para el usuario logueado
   User? _currentUser;
   String? _currentUserName;
-  String? _currentUserRole; // Almacenará el rol en minúsculas
+  String? _currentUserRole;
 
-  // Control de usuarios autorizados (solo para el Dropdown en el cierre)
   List<Map<String, dynamic>> _usuariosAutorizados = [];
 
-  // CAMBIO: Formato de moneda corregido (en_US usa coma para miles y punto para decimales)
   final NumberFormat currencyFormat = NumberFormat.currency(
-    locale: 'en_US', // Cambio de 'es_CL' a 'en_US'
+    locale: 'en_US',
     symbol: '\$',
     decimalDigits: 2,
   );
 
-  // Formateador de fecha
   final DateFormat dateTimeFormat = DateFormat('dd/MM/yy HH:mm');
 
   @override
@@ -44,7 +40,6 @@ class _CajaScreenState extends State<CajaScreen> {
     _verificarCajaAbierta();
   }
 
-  // MODIFICACIÓN CLAVE 1: Normaliza el rol del usuario actual
   Future<void> _loadCurrentUser() async {
     _currentUser = FirebaseAuth.instance.currentUser;
     if (_currentUser == null) {
@@ -62,7 +57,6 @@ class _CajaScreenState extends State<CajaScreen> {
         setState(() {
           _currentUserName =
               userDoc.get('nombre') ?? 'Cajero ID: ${_currentUser!.uid}';
-          // Convertir el rol a minúsculas aquí
           _currentUserRole = (userDoc.data()?['rol'] as String?)?.toLowerCase();
         });
       } else {
@@ -78,11 +72,8 @@ class _CajaScreenState extends State<CajaScreen> {
     }
   }
 
-  // MODIFICACIÓN CLAVE 2: Normaliza los roles de los usuarios autorizados
   Future<void> _cargarUsuariosAutorizados() async {
     try {
-      // Usamos whereIn para capturar todos los usuarios con roles relevantes,
-      // la normalización a minúsculas se hace al guardar en la lista.
       final snapshot = await _firestore
           .collection('usuarios')
           .where(
@@ -104,7 +95,6 @@ class _CajaScreenState extends State<CajaScreen> {
               (doc) => {
                 'id': doc.id,
                 'nombre': doc.data()['nombre'] ?? 'Sin nombre',
-                // Convertir el rol a minúsculas aquí para usarlo en el Dropdown
                 'rol': (doc.data()['rol'] as String?)?.toLowerCase() ?? '',
               },
             )
@@ -158,7 +148,6 @@ class _CajaScreenState extends State<CajaScreen> {
       return;
     }
 
-    // El rol ya está en minúsculas gracias a _loadCurrentUser
     if (_currentUserRole != 'administrador' && _currentUserRole != 'cajero') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -174,7 +163,7 @@ class _CajaScreenState extends State<CajaScreen> {
 
     final formKey = GlobalKey<FormState>();
     final fondoController = TextEditingController(text: '1000');
-    String turnoSeleccionado = 'mañana';
+    String turnoSeleccionado = 'tarde';
 
     await showDialog(
       context: context,
@@ -297,6 +286,7 @@ class _CajaScreenState extends State<CajaScreen> {
         'total_transferencia': 0.0,
         'total_propinas': 0.0,
         'total_egresos': 0.0,
+        'total_descuentos': 0.0,
         'efectivo_esperado': fondo,
         'notas': '',
       });
@@ -306,8 +296,244 @@ class _CajaScreenState extends State<CajaScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ Caja abierta por $cajeroNombre'),
+            content: Text('✔ Caja abierta por $cajeroNombre'),
             backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  // ✅ NUEVO: Diálogo para aplicar descuentos
+  Future<void> _mostrarDialogoDescuento() async {
+    if (_cajaActualId == null) return;
+
+    final formKey = GlobalKey<FormState>();
+    final montoController = TextEditingController();
+    final razonController = TextEditingController();
+    String tipoDescuento = 'porcentaje'; // 'porcentaje' o 'monto_fijo'
+    String categoriaDescuento = 'cortesia'; // cortesia, promocion, error, otro
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.discount, color: Colors.purple),
+              SizedBox(width: 8),
+              Text('Aplicar Descuento'),
+            ],
+          ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Tipo de descuento
+                  DropdownButtonFormField<String>(
+                    value: tipoDescuento,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de Descuento',
+                      prefixIcon: Icon(Icons.percent),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'porcentaje',
+                        child: Text('Porcentaje (%)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monto_fijo',
+                        child: Text('Monto Fijo (\$)'),
+                      ),
+                    ],
+                    onChanged: (v) => setDialogState(() => tipoDescuento = v!),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Categoría del descuento
+                  DropdownButtonFormField<String>(
+                    value: categoriaDescuento,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría',
+                      prefixIcon: Icon(Icons.category),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'cortesia',
+                        child: Text('Cortesía'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'promocion',
+                        child: Text('Promoción'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'error',
+                        child: Text('Corrección de Error'),
+                      ),
+                      DropdownMenuItem(value: 'otro', child: Text('Otro')),
+                    ],
+                    onChanged: (v) =>
+                        setDialogState(() => categoriaDescuento = v!),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Monto o porcentaje
+                  TextFormField(
+                    controller: montoController,
+                    decoration: InputDecoration(
+                      labelText: tipoDescuento == 'porcentaje'
+                          ? 'Porcentaje (%)'
+                          : 'Monto (\$)',
+                      prefixIcon: Icon(
+                        tipoDescuento == 'porcentaje'
+                            ? Icons.percent
+                            : Icons.attach_money,
+                      ),
+                      border: const OutlineInputBorder(),
+                      helperText: tipoDescuento == 'porcentaje'
+                          ? 'Ejemplo: 10 para 10%'
+                          : 'Ejemplo: 50 para \$50',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Este campo es obligatorio';
+                      }
+                      final valor = double.tryParse(v);
+                      if (valor == null || valor <= 0) {
+                        return 'Debe ser un valor positivo';
+                      }
+                      if (tipoDescuento == 'porcentaje' && valor > 100) {
+                        return 'El porcentaje no puede ser mayor a 100%';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Razón del descuento
+                  TextFormField(
+                    controller: razonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Razón del Descuento',
+                      prefixIcon: Icon(Icons.description),
+                      border: OutlineInputBorder(),
+                      helperText: 'Explica brevemente el motivo',
+                    ),
+                    maxLines: 2,
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Campo obligatorio' : null,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Advertencia
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.warning, color: Colors.orange, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'El descuento se restará del efectivo esperado',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.check),
+              label: const Text('Aplicar Descuento'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context);
+                  await _aplicarDescuento(
+                    tipoDescuento,
+                    categoriaDescuento,
+                    double.parse(montoController.text),
+                    razonController.text,
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NUEVO: Aplicar descuento a la caja
+  Future<void> _aplicarDescuento(
+    String tipo,
+    String categoria,
+    double valor,
+    String razon,
+  ) async {
+    if (_cajaActualId == null) return;
+
+    try {
+      // Registrar el descuento como un movimiento especial
+      await _firestore.collection('movimientos_caja').add({
+        'cajaId': _cajaActualId,
+        'fecha': FieldValue.serverTimestamp(),
+        'tipo': 'descuento',
+        'categoria': categoria,
+        'tipoDescuento': tipo, // 'porcentaje' o 'monto_fijo'
+        'valorDescuento': valor,
+        'monto': valor, // Para consistencia con otros movimientos
+        'descripcion': razon,
+        'cajero': _cajaActual!['cajero'],
+        'aplicadoPor': _currentUserName,
+      });
+
+      // Actualizar totales de la caja
+      final cajaRef = _firestore.collection('cajas').doc(_cajaActualId);
+
+      // El descuento disminuye el efectivo esperado y se suma al total de descuentos
+      await cajaRef.update({
+        'total_descuentos': FieldValue.increment(valor),
+        'efectivo_esperado': FieldValue.increment(-valor),
+      });
+
+      await _verificarCajaAbierta();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✔ Descuento aplicado: ${currencyFormat.format(valor)}',
+            ),
+            backgroundColor: Colors.purple,
           ),
         );
       }
@@ -436,7 +662,6 @@ class _CajaScreenState extends State<CajaScreen> {
     if (_cajaActualId == null) return;
 
     try {
-      // Registrar movimiento
       await _firestore.collection('movimientos_caja').add({
         'cajaId': _cajaActualId,
         'fecha': FieldValue.serverTimestamp(),
@@ -447,16 +672,10 @@ class _CajaScreenState extends State<CajaScreen> {
         'cajero': _cajaActual!['cajero'],
       });
 
-      // Actualizar totales de la caja
       final cajaRef = _firestore.collection('cajas').doc(_cajaActualId);
-
-      // Los movimientos que afectan el efectivo esperado son:
-      // Ingreso efectivo (aumenta efectivo esperado) y Egreso (disminuye efectivo esperado).
-      // Tarjeta y Transferencia aumentan los totales, pero no el efectivo físico esperado.
 
       if (tipo == 'ingreso') {
         if (categoria == 'venta_efectivo' || categoria == 'venta_paraLlevar') {
-          // Tanto ventas en efectivo como para llevar incrementan el efectivo esperado
           await cajaRef.update({
             'total_efectivo': FieldValue.increment(monto),
             'efectivo_esperado': FieldValue.increment(monto),
@@ -471,7 +690,6 @@ class _CajaScreenState extends State<CajaScreen> {
           await cajaRef.update({'total_propinas': FieldValue.increment(monto)});
         }
       } else {
-        // Todo egreso implica una salida de efectivo (disminuye efectivo esperado)
         await cajaRef.update({
           'total_egresos': FieldValue.increment(monto),
           'efectivo_esperado': FieldValue.increment(-monto),
@@ -484,7 +702,7 @@ class _CajaScreenState extends State<CajaScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '✓ ${tipo == 'ingreso' ? 'Ingreso' : 'Egreso'} registrado',
+              '✔ ${tipo == 'ingreso' ? 'Ingreso' : 'Egreso'} registrado',
             ),
             backgroundColor: Colors.green,
           ),
@@ -519,7 +737,6 @@ class _CajaScreenState extends State<CajaScreen> {
     final efectivoContadoController = TextEditingController();
     final notasController = TextEditingController();
 
-    // Por defecto, el usuario que cierra es el que está logueado
     String? usuarioCierreId = _currentUser!.uid;
 
     final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
@@ -542,7 +759,6 @@ class _CajaScreenState extends State<CajaScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Selector de usuario que cierra
                   DropdownButtonFormField<String>(
                     value: usuarioCierreId,
                     decoration: const InputDecoration(
@@ -563,14 +779,12 @@ class _CajaScreenState extends State<CajaScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                // El rol ya está en minúsculas para la comparación
                                 color: usuario['rol'] == 'administrador'
                                     ? Colors.purple.shade100
                                     : Colors.blue.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                // Mostramos el rol en mayúsculas para mejor visualización
                                 usuario['rol'].toUpperCase(),
                                 style: TextStyle(
                                   fontSize: 10,
@@ -701,7 +915,6 @@ class _CajaScreenState extends State<CajaScreen> {
               ),
               onPressed: () async {
                 if (formKey.currentState!.validate()) {
-                  // Obtener nombre del usuario que cierra
                   final usuarioCierre = _usuariosAutorizados.firstWhere(
                     (u) => u['id'] == usuarioCierreId,
                     orElse: () => {'nombre': 'Desconocido'},
@@ -755,8 +968,8 @@ class _CajaScreenState extends State<CajaScreen> {
           SnackBar(
             content: Text(
               diferencia == 0
-                  ? "✓ Caja cerrada por $usuarioCierreNombre - Sin diferencias"
-                  : "✓ Caja cerrada por $usuarioCierreNombre - Diferencia: ${currencyFormat.format(diferencia)}",
+                  ? "✔ Caja cerrada por $usuarioCierreNombre - Sin diferencias"
+                  : "✔ Caja cerrada por $usuarioCierreNombre - Diferencia: ${currencyFormat.format(diferencia)}",
             ),
             backgroundColor: diferencia == 0 ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 4),
@@ -786,11 +999,9 @@ class _CajaScreenState extends State<CajaScreen> {
         title: 'Gestión de Caja',
         child: Column(
           children: [
-            // Estado de la caja
             _buildEstadoCaja(cajaAbierta),
             const SizedBox(height: 24),
 
-            // Botones principales
             if (!cajaAbierta) ...[
               ElevatedButton.icon(
                 onPressed: _mostrarDialogoAperturaCaja,
@@ -809,14 +1020,13 @@ class _CajaScreenState extends State<CajaScreen> {
             ],
 
             if (cajaAbierta) ...[
-              // Tarjetas de información
               _buildInfoCards(),
               const SizedBox(height: 24),
 
-              // Botones de acciones
               Wrap(
                 spacing: 16,
                 runSpacing: 16,
+                alignment: WrapAlignment.center,
                 children: [
                   ElevatedButton.icon(
                     onPressed: () => _mostrarDialogoMovimiento('ingreso'),
@@ -844,6 +1054,20 @@ class _CajaScreenState extends State<CajaScreen> {
                       ),
                     ),
                   ),
+                  // ✅ NUEVO: Botón para aplicar descuentos
+                  ElevatedButton.icon(
+                    onPressed: _mostrarDialogoDescuento,
+                    icon: const Icon(Icons.discount),
+                    label: const Text('Aplicar Descuento'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
                   ElevatedButton.icon(
                     onPressed: _mostrarDialogoCierreCaja,
                     icon: const Icon(Icons.lock),
@@ -861,12 +1085,10 @@ class _CajaScreenState extends State<CajaScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Lista de movimientos del día (Implementación regresada)
               _buildMovimientosDelDia(),
             ],
 
             const SizedBox(height: 24),
-            // Historial de cierres (Implementación regresada)
             _buildHistorialCierres(),
           ],
         ),
@@ -874,7 +1096,6 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  // Widget auxiliar para las tarjetas de información
   Widget _buildInfoCard(String title, String value, Color color) {
     return Card(
       elevation: 2,
@@ -911,6 +1132,7 @@ class _CajaScreenState extends State<CajaScreen> {
     final total_transferencia = _cajaActual!['total_transferencia'] ?? 0.0;
     final total_propinas = _cajaActual!['total_propinas'] ?? 0.0;
     final total_egresos = _cajaActual!['total_egresos'] ?? 0.0;
+    final total_descuentos = _cajaActual!['total_descuentos'] ?? 0.0; // ✅ NUEVO
     final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
 
     final total_ingresos =
@@ -955,6 +1177,21 @@ class _CajaScreenState extends State<CajaScreen> {
             ),
           ],
         ),
+        // ✅ NUEVO: Mostrar total de descuentos
+        if (total_descuentos > 0) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoCard(
+                  'Descuentos Aplicados',
+                  currencyFormat.format(total_descuentos),
+                  Colors.purple.shade600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1007,7 +1244,6 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  // REIMPLEMENTADO: Muestra los movimientos en tiempo real de la caja actual
   Widget _buildMovimientosDelDia() {
     if (_cajaActualId == null) {
       return const ContentCard(
@@ -1021,7 +1257,6 @@ class _CajaScreenState extends State<CajaScreen> {
       );
     }
 
-    // Mapeo para nombres de categorías más amigables
     const categoryNames = {
       'venta_efectivo': 'Venta Efectivo',
       'venta_tarjeta': 'Venta Tarjeta',
@@ -1035,6 +1270,11 @@ class _CajaScreenState extends State<CajaScreen> {
       'retiro_autorizado': 'Retiro',
       'devolucion': 'Devolución',
       'otros_egresos': 'Otros Egresos',
+      // ✅ NUEVO: Categorías de descuentos
+      'cortesia': 'Cortesía',
+      'promocion': 'Promoción',
+      'error': 'Corrección',
+      'otro': 'Otro Descuento',
     };
 
     return ContentCard(
@@ -1073,14 +1313,28 @@ class _CajaScreenState extends State<CajaScreen> {
               final descripcion = data['descripcion'] ?? 'Sin descripción';
               final fecha = (data['fecha'] as Timestamp?)?.toDate();
 
+              // ✅ NUEVO: Manejo especial para descuentos
               final isIngreso = tipo == 'ingreso';
-              final color = isIngreso
+              final isDescuento = tipo == 'descuento';
+
+              final color = isDescuento
+                  ? Colors.purple.shade700
+                  : isIngreso
                   ? Colors.green.shade700
                   : Colors.red.shade700;
-              final icon = isIngreso
+
+              final icon = isDescuento
+                  ? Icons.discount
+                  : isIngreso
                   ? Icons.arrow_upward
                   : Icons.arrow_downward;
-              final sign = isIngreso ? '+' : '-';
+
+              final sign = isDescuento
+                  ? '-'
+                  : isIngreso
+                  ? '+'
+                  : '-';
+
               final categoryText = categoryNames[categoria] ?? categoria;
 
               return ListTile(
@@ -1089,7 +1343,7 @@ class _CajaScreenState extends State<CajaScreen> {
                   child: Icon(icon, color: color),
                 ),
                 title: Text(
-                  '$sign ${currencyFormat.format(monto)} (${categoryText})',
+                  '$sign ${currencyFormat.format(monto)} (${isDescuento ? 'DESCUENTO - ' : ''}$categoryText)',
                   style: TextStyle(fontWeight: FontWeight.bold, color: color),
                 ),
                 subtitle: Text('$descripcion\nCajero: ${data['cajero']}'),
@@ -1105,7 +1359,6 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  // REIMPLEMENTADO: Muestra el historial de cierres
   Widget _buildHistorialCierres() {
     return ContentCard(
       title: 'Historial de Cierres de Caja (Cortes Anteriores)',
@@ -1114,7 +1367,7 @@ class _CajaScreenState extends State<CajaScreen> {
             .collection('cajas')
             .where('estado', isEqualTo: 'cerrada')
             .orderBy('fechaCierre', descending: true)
-            .limit(10) // Mostrar solo los últimos 10 cierres
+            .limit(10)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -1144,6 +1397,7 @@ class _CajaScreenState extends State<CajaScreen> {
               final diferencia = data['diferencia'] ?? 0.0;
               final fondo = data['fondo_inicial'] ?? 0.0;
               final contado = data['efectivoContado'] ?? 0.0;
+              final descuentos = data['total_descuentos'] ?? 0.0; // ✅ NUEVO
 
               final color = diferencia == 0
                   ? Colors.green
@@ -1164,7 +1418,10 @@ class _CajaScreenState extends State<CajaScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    'Cajero de Apertura: ${data['cajero']}\nCerrado por: ${data['cerradoPor']}\nFondo Inicial: ${currencyFormat.format(fondo)}',
+                    'Cajero de Apertura: ${data['cajero']}\n'
+                    'Cerrado por: ${data['cerradoPor']}\n'
+                    'Fondo Inicial: ${currencyFormat.format(fondo)}'
+                    '${descuentos > 0 ? '\nDescuentos: ${currencyFormat.format(descuentos)}' : ''}', // ✅ NUEVO
                   ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1184,7 +1441,6 @@ class _CajaScreenState extends State<CajaScreen> {
                     ],
                   ),
                   onTap: () {
-                    // Acción para ver detalles completos del cierre (opcional)
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Corte seleccionado: ${cierre.id}'),

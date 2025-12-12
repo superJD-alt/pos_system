@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // Importaciones de las vistas según el rol
-import 'package:pos_system/pages/panel_meseros.dart'; // Vista Móvil/iOS para Mesero/Cocinero
-import 'package:pos_system/screens/dashboard.dart'; // Vista Web/Desktop para Administrador/Cajero
-import 'package:pos_system/pages/mesa_state.dart'; // Clase para manejar el estado de la mesa
+import 'package:pos_system/pages/panel_meseros.dart';
+import 'package:pos_system/screens/dashboard.dart';
+import 'package:pos_system/pages/mesa_state.dart';
 
 class LoginPos extends StatefulWidget {
   const LoginPos({super.key});
@@ -18,8 +18,7 @@ class _LoginPosState extends State<LoginPos> {
   final TextEditingController passController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final MesaState _mesaState =
-      MesaState(); // Asumo que MesaState es un Singleton o tiene su lógica de inicialización
+  final MesaState _mesaState = MesaState();
 
   String? errorMessage;
   bool loading = false;
@@ -33,7 +32,7 @@ class _LoginPosState extends State<LoginPos> {
       return;
     }
 
-    // Validación de solo números (Manteniendo tu lógica original, aunque es inusual para contraseñas)
+    // Validación de solo números
     if (!RegExp(r'^\d+$').hasMatch(user) || !RegExp(r'^\d+$').hasMatch(pass)) {
       setState(() => errorMessage = 'Solo se permiten números');
       return;
@@ -58,7 +57,6 @@ class _LoginPosState extends State<LoginPos> {
       String nombreMesero = "Usuario POS";
       String userRole = 'unknown';
 
-      // Es crucial verificar si el usuario de Auth existe antes de intentar buscar en Firestore
       if (userCredential.user != null) {
         try {
           DocumentSnapshot userDoc = await _firestore
@@ -72,9 +70,15 @@ class _LoginPosState extends State<LoginPos> {
             userRole =
                 (userDoc.get('rol') as String?)?.toLowerCase() ?? 'unknown';
 
+            // ✅ ACTUALIZAR sesionActiva a true
+            await _firestore
+                .collection('usuarios')
+                .doc(userCredential.user!.uid)
+                .update({'sesionActiva': true});
+
             debugPrint('✅ Usuario autenticado. Rol: $userRole');
+            debugPrint('✅ Sesión marcada como activa');
           } else {
-            // Usuario autenticado pero sin registro en Firestore
             debugPrint(
               'Error: Documento de usuario no encontrado en Firestore.',
             );
@@ -98,23 +102,20 @@ class _LoginPosState extends State<LoginPos> {
       switch (userRole) {
         case 'mesero':
         case 'cocinero':
-          // Estos roles usan la interfaz optimizada para móvil/touch
           destinationPage = const PanelMeseros();
           break;
         case 'administrador':
         case 'cajero':
-          // Estos roles usan la interfaz de escritorio/web
           destinationPage = const Dashboard();
           break;
         default:
-          // Manejar rol desconocido, no asignado o error en la obtención
-          await _auth.signOut(); // Opcional: Cerrar sesión por seguridad
+          await _auth.signOut();
           setState(() {
             errorMessage =
                 'Rol de usuario no válido o no asignado. No se puede acceder al sistema.';
             loading = false;
           });
-          return; // Detener la navegación
+          return;
       }
 
       // Navegar a la página determinada
@@ -142,7 +143,6 @@ class _LoginPosState extends State<LoginPos> {
 
   @override
   Widget build(BuildContext context) {
-    // ... Tu código de UI se mantiene igual ...
     final orientation = MediaQuery.of(context).orientation;
     final size = MediaQuery.of(context).size;
     final bool isWide = size.width > 600;

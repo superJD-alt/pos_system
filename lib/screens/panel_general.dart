@@ -76,11 +76,15 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
           }
         }
 
+        // ✅ AQUÍ ESTÁ EL CAMBIO - Líneas 76-78
         return StreamBuilder<QuerySnapshot>(
           stream: _firestore
               .collection('usuarios')
-              .where('activo', isEqualTo: true)
-              .where('rol', whereIn: ['mesero', 'cajero'])
+              .where('sesionActiva', isEqualTo: true)
+              .where(
+                'rol',
+                whereIn: ['Mesero', 'Cajero'],
+              ) // ⭐ CAMBIÉ DE minúsculas a mayúsculas
               .snapshots(),
           builder: (context, personalSnapshot) {
             int personalActivo = personalSnapshot.data?.docs.length ?? 0;
@@ -610,11 +614,23 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                 .orderBy('fechaApertura', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              // 💡 CORRECCIÓN: Usar connectionState.waiting para el loader
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
                     child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              // 💡 CORRECCIÓN: Manejar errores explícitamente si existen
+              if (snapshot.hasError) {
+                // Idealmente, aquí imprimirías snapshot.error para ver el problema de Firebase
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('Error al cargar cuentas. Revisa la consola.'),
                   ),
                 );
               }

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-// import 'package:firebase_auth/firebase_auth.dart'; // No es necesario aquí, ya que la función onLogout viene del Dashboard
 
 class SidebarMenu extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onMenuItemSelected;
   final String nombreUsuario;
   final String correoUsuario;
-  final VoidCallback onLogout; // Propiedad para la función de cerrar sesión
+  final VoidCallback onLogout;
 
   const SidebarMenu({
     Key? key,
@@ -14,7 +13,7 @@ class SidebarMenu extends StatelessWidget {
     required this.onMenuItemSelected,
     required this.nombreUsuario,
     required this.correoUsuario,
-    required this.onLogout, // Requerido
+    required this.onLogout,
   }) : super(key: key);
 
   @override
@@ -90,7 +89,6 @@ class SidebarMenu extends StatelessWidget {
     );
   }
 
-  // --- FUNCIÓN CORREGIDA ---
   Widget _buildUserProfileMenu(BuildContext context) {
     return PopupMenuButton<String>(
       // 1. EL WIDGET QUE SE MUESTRA SIEMPRE
@@ -126,7 +124,6 @@ class SidebarMenu extends StatelessWidget {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        // Cambiado a drop_down para indicar que el menú se abre hacia arriba o abajo
                         Icon(
                           Icons.arrow_drop_down,
                           color: Color(0xFF94A3B8),
@@ -166,7 +163,7 @@ class SidebarMenu extends StatelessWidget {
         ),
       ],
 
-      // 3. ✅ EL LISTENER QUE EJECUTA LA ACCIÓN (LO QUE FALTABA)
+      // 3. ✅ EL LISTENER QUE EJECUTA LA ACCIÓN
       onSelected: (String result) {
         if (result == 'logout') {
           // Llama a la función onLogout proporcionada por el widget padre (Dashboard)

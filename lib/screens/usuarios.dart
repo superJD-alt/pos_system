@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart'; // ✅ AGREGAR
+import 'package:cloud_functions/cloud_functions.dart';
 import '../widgets/content_card.dart';
 
 class UsuariosScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class UsuariosScreen extends StatefulWidget {
 
 class _UsuariosScreenState extends State<UsuariosScreen> {
   FirebaseFirestore? _firestore;
-  FirebaseFunctions? _functions; // ✅ NUEVO
+  FirebaseFunctions? _functions;
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
@@ -21,7 +21,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   String _estadoSeleccionado = 'Activo';
   bool _isFirebaseInitialized = false;
   bool _isEditMode = false;
-  String? _userIdEnEdicion; // ✅ NUEVO: Para guardar el ID al editar
+  String? _userIdEnEdicion;
 
   final List<String> rolesDisponibles = [
     'Administrador',
@@ -41,7 +41,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   Future<void> _initializeFirebase() async {
     try {
       _firestore = FirebaseFirestore.instance;
-      _functions = FirebaseFunctions.instance; // ✅ Inicializar Functions
+      _functions = FirebaseFunctions.instance;
       setState(() {
         _isFirebaseInitialized = true;
       });
@@ -85,6 +85,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
         'nombre': _nombreController.text.trim(),
         'rol': _rolSeleccionado,
         'estado': _estadoSeleccionado,
+        'sesionActiva': false, // ✅ Inicializar sesión como inactiva
       });
 
       Navigator.of(context).pop(); // Cerrar loading
@@ -275,7 +276,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Campo Email (✅ AHORA EDITABLE)
+                      // Campo Email
                       TextFormField(
                         controller: _emailController,
                         decoration: const InputDecoration(

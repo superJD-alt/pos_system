@@ -7,7 +7,6 @@ import 'package:pos_system/pages/pdf_generator.dart';
 import 'package:printing/printing.dart';
 import 'dart:typed_data';
 
-// Definición de tipos para claridad
 typedef ReportData = Map<String, dynamic>;
 
 class ReportesScreen extends StatefulWidget {
@@ -23,15 +22,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
     locale: 'es_US',
     symbol: '\$',
   );
-
-  // --- Variables de Estado y Rango ---
-  String _selectedPeriod = 'daily'; // 'daily', 'weekly', 'monthly'
+  String _selectedPeriod = 'daily';
   DateTime _selectedDate = DateTime.now();
-
-  // Almacenará el inicio y fin del rango de la consulta
   late DateTime _startDate;
   late DateTime _endDate;
-
   Future<ReportData>? _reportFuture;
 
   @override
@@ -41,13 +35,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
     _reportFuture = _fetchReports();
   }
 
-  // --- Lógica de Cálculo de Rangos de Fecha ---
   void _calculateAndSetRange(DateTime date, String period) {
     DateTime start;
     DateTime end;
-
     final dateOnly = DateTime(date.year, date.month, date.day);
-
     if (period == 'daily') {
       start = dateOnly;
       end = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
@@ -64,7 +55,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       start = dateOnly;
       end = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
     }
-
     setState(() {
       _startDate = start;
       _endDate = end;
@@ -72,28 +62,18 @@ class _ReportesScreenState extends State<ReportesScreen> {
     });
   }
 
-  // Función auxiliar para convertir String a DateTime
   DateTime? _parseStringToDateTime(dynamic value) {
     if (value == null) return null;
-
-    if (value is Timestamp) {
-      return value.toDate();
-    }
-
-    if (value is DateTime) {
-      return value;
-    }
-
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
     if (value is String) {
       try {
-        // Intentar parsear ISO 8601
         return DateTime.parse(value);
       } catch (e) {
         print('⚠️ Error parseando fecha: $value - $e');
         return null;
       }
     }
-
     return null;
   }
 
@@ -101,18 +81,15 @@ class _ReportesScreenState extends State<ReportesScreen> {
     print('🔍 DEBUG: Iniciando consulta de reportes');
     print('📅 DEBUG: Rango de fechas: $_startDate a $_endDate');
 
-    // 1. Reporte de Cajas Cerradas
     final cajasSnapshot = await _firestore
         .collection('cajas')
         .where('fechaCierre', isGreaterThanOrEqualTo: _startDate)
         .where('fechaCierre', isLessThanOrEqualTo: _endDate)
         .where('estado', isEqualTo: 'cerrada')
         .get();
-
     double totalDiferenciaCajas = 0.0;
     double totalEfectivoContado = 0.0;
     final List<Map<String, dynamic>> cierres = [];
-
     for (var doc in cajasSnapshot.docs) {
       final data = doc.data();
       totalDiferenciaCajas += (data['diferencia'] as num?)?.toDouble() ?? 0.0;
@@ -121,16 +98,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
       cierres.add({...data, 'id': doc.id});
     }
 
-    // 2. Reporte de Movimientos
     final movimientosSnapshot = await _firestore
         .collection('movimientos_caja')
         .where('fecha', isGreaterThanOrEqualTo: _startDate)
         .where('fecha', isLessThanOrEqualTo: _endDate)
         .get();
-
     double totalIngresosMovimientos = 0.0;
     double totalEgresosMovimientos = 0.0;
-
     for (var doc in movimientosSnapshot.docs) {
       final data = doc.data();
       final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
@@ -141,72 +115,45 @@ class _ReportesScreenState extends State<ReportesScreen> {
       }
     }
 
-    // 3. ✅ CORREGIDO: Reporte de Tickets/Ventas con fechaCierre como String
-    print('🔍 DEBUG: Consultando cuentasCerradas...');
-
-    // Como fechaCierre es String, traemos TODOS los documentos y filtramos manualmente
     final ventasSnapshot = await _firestore.collection('cuentasCerradas').get();
-
-    print(
-      '📊 DEBUG: Total documentos en cuentasCerradas: ${ventasSnapshot.docs.length}',
-    );
-
     double totalVentasBruto = 0.0;
     int totalProductosVendidos = 0;
     final List<Map<String, dynamic>> tickets = [];
-
     for (var doc in ventasSnapshot.docs) {
       final data = doc.data();
-
-      // Convertir fechaCierre de String a DateTime
       final fechaCierre = _parseStringToDateTime(data['fechaCierre']);
-
-      if (fechaCierre == null) {
-        print('⚠️ Ticket ${doc.id} sin fecha válida');
-        continue;
-      }
-
-      // Filtrar manualmente por rango de fechas
+      if (fechaCierre == null) continue;
       if (fechaCierre.isAfter(
             _startDate.subtract(const Duration(seconds: 1)),
           ) &&
           fechaCierre.isBefore(_endDate.add(const Duration(seconds: 1)))) {
         totalVentasBruto += (data['totalCuenta'] as num?)?.toDouble() ?? 0.0;
         totalProductosVendidos += (data['totalItems'] as num?)?.toInt() ?? 0;
-
         tickets.add({...data, 'id': doc.id, 'fechaCierre': fechaCierre});
       }
     }
 
-    print('✅ DEBUG: Tickets encontrados en rango: ${tickets.length}');
-    print('💵 DEBUG: Total ventas bruto: $totalVentasBruto');
-
-    // 4. Reporte de Comandas
     final comandasSnapshot = await _firestore
-        .collection('comandas')
-        .where('fechaHora', isGreaterThanOrEqualTo: _startDate)
-        .where('fechaHora', isLessThanOrEqualTo: _endDate)
+        .collection('ordenesCocina')
+        .where('horaComanda', isGreaterThanOrEqualTo: _startDate)
+        .where('horaComanda', isLessThanOrEqualTo: _endDate)
         .get();
-
     final List<Map<String, dynamic>> comandas = [];
     int totalComandasCocina = 0;
     int totalComandasBarra = 0;
     int totalProductosComandasCocina = 0;
     int totalProductosComandasBarra = 0;
-
     Map<String, int> comandasPorEstado = {
       'pendiente': 0,
       'preparando': 0,
       'completada': 0,
       'cancelada': 0,
     };
-
     for (var doc in comandasSnapshot.docs) {
       final data = doc.data();
       final destino = data['destino'] ?? 'cocina';
       final estado = data['estado'] ?? 'pendiente';
       final totalProductos = (data['totalProductos'] as num?)?.toInt() ?? 0;
-
       if (destino == 'cocina') {
         totalComandasCocina++;
         totalProductosComandasCocina += totalProductos;
@@ -214,19 +161,17 @@ class _ReportesScreenState extends State<ReportesScreen> {
         totalComandasBarra++;
         totalProductosComandasBarra += totalProductos;
       }
-
       comandasPorEstado[estado] = (comandasPorEstado[estado] ?? 0) + 1;
-
       comandas.add({
         ...data,
         'id': doc.id,
-        'fechaHora': (data['fechaHora'] as Timestamp).toDate(),
+        'horaComanda': (data['horaComanda'] as Timestamp).toDate(),
       });
     }
-
     comandas.sort(
-      (a, b) =>
-          (b['fechaHora'] as DateTime).compareTo(a['fechaHora'] as DateTime),
+      (a, b) => (b['horaComanda'] as DateTime).compareTo(
+        a['horaComanda'] as DateTime,
+      ),
     );
 
     return {
@@ -252,8 +197,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
     };
   }
 
-  // --- Lógica de Interfaz de Usuario (UI) ---
-
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -261,7 +204,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -273,7 +215,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   String _formatRange() {
     final DateFormat formatter = DateFormat('dd MMM yyyy', 'es');
-
     if (_selectedPeriod == 'daily') {
       return 'Día: ${formatter.format(_startDate)}';
     } else if (_selectedPeriod == 'weekly') {
@@ -304,9 +245,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
-                  print('Error al cargar reporte: ${snapshot.error}');
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
@@ -317,7 +256,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     ),
                   );
                 }
-
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(
                     child: Padding(
@@ -329,7 +267,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     ),
                   );
                 }
-
                 final data = snapshot.data!;
                 return _buildReportContent(data);
               },
@@ -438,7 +375,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final totalProductosBarra = data['totalProductosComandasBarra'] ?? 0;
     final comandasPorEstado =
         data['comandasPorEstado'] as Map<String, int>? ?? {};
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -454,12 +390,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Comandas Cocina',
                 '$totalComandasCocina',
-                Colors.orange.shade600,
+                const Color(0xFFF97316),
               ),
               _buildSummaryCard(
                 'Comandas Barra',
                 '$totalComandasBarra',
-                Colors.blue.shade600,
+                const Color(0xFF0EA5E9),
               ),
             ],
           ),
@@ -472,12 +408,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Productos Cocina',
                 '$totalProductosCocina',
-                Colors.orange.shade400,
+                const Color(0xFFFB923C),
               ),
               _buildSummaryCard(
                 'Productos Barra',
                 '$totalProductosBarra',
-                Colors.blue.shade400,
+                const Color(0xFF38BDF8),
               ),
             ],
           ),
@@ -490,12 +426,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Pendientes',
                 '${comandasPorEstado['pendiente'] ?? 0}',
-                Colors.red.shade600,
+                const Color(0xFFDC2626),
               ),
               _buildSummaryCard(
                 'Preparando',
                 '${comandasPorEstado['preparando'] ?? 0}',
-                Colors.amber.shade600,
+                const Color(0xFFF59E0B),
               ),
             ],
           ),
@@ -508,12 +444,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Completadas',
                 '${comandasPorEstado['completada'] ?? 0}',
-                Colors.green.shade600,
+                const Color(0xFF22C55E),
               ),
               _buildSummaryCard(
                 'Canceladas',
                 '${comandasPorEstado['cancelada'] ?? 0}',
-                Colors.grey.shade600,
+                const Color(0xFF64748B),
               ),
             ],
           ),
@@ -525,7 +461,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget _buildComandasList(ReportData data) {
     final comandas = data['comandas'] as List<Map<String, dynamic>>? ?? [];
     final displayComandas = comandas.take(20).toList();
-
     return ContentCard(
       title: 'Comandas Enviadas (${comandas.length})',
       child: comandas.isEmpty
@@ -541,7 +476,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   itemCount: displayComandas.length,
                   itemBuilder: (context, index) {
                     final comanda = displayComandas[index];
-                    final fecha = comanda['fechaHora'] as DateTime?;
+                    final fecha = comanda['horaComanda'] as DateTime?;
                     final destino = comanda['destino'] ?? 'cocina';
                     final estado = comanda['estado'] ?? 'pendiente';
                     final mesa = (comanda['numeroMesa'] as num?)?.toInt() ?? 0;
@@ -549,11 +484,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         (comanda['totalProductos'] as num?)?.toInt() ?? 0;
                     final productos =
                         comanda['productos'] as List<dynamic>? ?? [];
-
                     Color destinoColor = destino == 'cocina'
                         ? Colors.orange
                         : Colors.blue;
-
                     Color estadoColor;
                     IconData estadoIcon;
                     switch (estado) {
@@ -573,7 +506,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         estadoColor = Colors.grey;
                         estadoIcon = Icons.schedule;
                     }
-
                     return Column(
                       children: [
                         ExpansionTile(
@@ -615,8 +547,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                             ],
                           ),
                           subtitle: Text(
-                            'Mesa $mesa • ${comanda['mesero'] ?? 'N/A'}\n'
-                            '${fecha != null ? DateFormat('dd/MM/yyyy HH:mm').format(fecha) : 'N/A'}',
+                            'Mesa $mesa • ${comanda['mesero'] ?? 'N/A'}\n${fecha != null ? DateFormat('dd/MM/yyyy HH:mm').format(fecha) : 'N/A'}',
                           ),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -664,7 +595,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                     final precio =
                                         (prod['precio'] as num?)?.toDouble() ??
                                         0.0;
-
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 4,
@@ -759,24 +689,46 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget _buildSummaryCard(String title, String value, Color color) {
     return Expanded(
       child: Card(
-        elevation: 3,
-        color: color.withOpacity(0.05),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(fontSize: 14, color: color)),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+        elevation: 2,
+        shadowColor: color.withOpacity(0.3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: color.withOpacity(0.2), width: 1),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [color.withOpacity(0.08), color.withOpacity(0.03)],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: color.withOpacity(0.8),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -789,10 +741,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final totalEgresosMovimientos = data['totalEgresosMovimientos'] ?? 0.0;
     final totalDiferenciaCajas = data['totalDiferenciaCajas'] ?? 0.0;
     final totalEfectivoContado = data['totalEfectivoContado'] ?? 0.0;
-
     final gananciaBrutaEstimada =
         totalVentasBruto + totalIngresosMovimientos - totalEgresosMovimientos;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -808,12 +758,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Ventas Brutas',
                 currencyFormat.format(totalVentasBruto),
-                Colors.green.shade600,
+                const Color(0xFF10B981),
               ),
               _buildSummaryCard(
                 'Ganancia Estimada',
                 currencyFormat.format(gananciaBrutaEstimada),
-                Colors.blue.shade600,
+                const Color(0xFF3B82F6),
               ),
             ],
           ),
@@ -826,12 +776,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               _buildSummaryCard(
                 'Egresos Totales',
                 currencyFormat.format(totalEgresosMovimientos),
-                Colors.red.shade600,
+                const Color(0xFFEF4444),
               ),
               _buildSummaryCard(
                 'Total Efectivo Contado',
                 currencyFormat.format(totalEfectivoContado),
-                Colors.purple.shade600,
+                const Color(0xFF8B5CF6),
               ),
             ],
           ),
@@ -845,13 +795,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 'Total Diferencia Cajas',
                 currencyFormat.format(totalDiferenciaCajas),
                 totalDiferenciaCajas == 0
-                    ? Colors.grey.shade600
-                    : Colors.red.shade600,
+                    ? const Color(0xFF6B7280)
+                    : const Color(0xFFF59E0B),
               ),
               _buildSummaryCard(
                 'Tickets Generados',
                 '${data['numTickets']}',
-                Colors.teal.shade600,
+                const Color(0xFF14B8A6),
               ),
             ],
           ),
@@ -862,17 +812,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   Widget _buildTicketsList(ReportData data) {
     final tickets = data['tickets'] as List<Map<String, dynamic>>? ?? [];
-
-    // Ordenar tickets por fecha (más recientes primero)
     tickets.sort((a, b) {
       final fechaA = a['fechaCierre'] as DateTime?;
       final fechaB = b['fechaCierre'] as DateTime?;
       if (fechaA == null || fechaB == null) return 0;
       return fechaB.compareTo(fechaA);
     });
-
     final displayTickets = tickets.take(50).toList();
-
     return ContentCard(
       title: 'Cuentas Cerradas / Tickets (${tickets.length})',
       child: tickets.isEmpty
@@ -895,12 +841,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Estadísticas rápidas
                 _buildTicketsQuickStats(tickets),
                 const SizedBox(height: 16),
                 const Divider(),
-
-                // Lista de tickets
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -914,8 +857,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     );
                   },
                 ),
-
-                // Mensaje si hay más tickets
                 if (tickets.length > displayTickets.length)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -957,17 +898,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
     int totalProductos = 0;
     double promedioTicket = 0;
     int totalComensales = 0;
-
     for (var ticket in tickets) {
       totalVentas += (ticket['totalCuenta'] as num?)?.toDouble() ?? 0.0;
       totalProductos += (ticket['totalItems'] as num?)?.toInt() ?? 0;
       totalComensales += (ticket['comensales'] as num?)?.toInt() ?? 0;
     }
-
     if (tickets.isNotEmpty) {
       promedioTicket = totalVentas / tickets.length;
     }
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1074,11 +1012,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final comensales = (ticket['comensales'] as num?)?.toInt() ?? 0;
     final numeroMesa = (ticket['numeroMesa'] as num?)?.toInt() ?? 0;
     final mesero = ticket['mesero'] ?? 'N/A';
-
     final fechaApertura =
         _parseStringToDateTime(ticket['fechaApertura']) ?? fecha;
-
-    // Calcular duración de la cuenta
     String duracion = '';
     if (fechaApertura != null && fecha != null) {
       final diferencia = fecha.difference(fechaApertura);
@@ -1086,8 +1021,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       final minutos = diferencia.inMinutes % 60;
       duracion = horas > 0 ? '${horas}h ${minutos}m' : '${minutos}m';
     }
-
-    // Crear objeto CuentaCerrada para reimprimir
     final cuentaCerrada = CuentaCerrada(
       id: ticket['id'],
       numeroMesa: numeroMesa,
@@ -1099,7 +1032,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       totalItems: totalItems,
       totalCuenta: totalCuenta,
     );
-
     return Column(
       children: [
         ExpansionTile(
@@ -1279,23 +1211,28 @@ class _ReportesScreenState extends State<ReportesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ID: ${ticket.id.substring(0, 12)}...',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Apertura: ${DateFormat('dd/MM HH:mm').format(ticket.fechaApertura)}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  Text(
-                    'Cierre: ${DateFormat('dd/MM HH:mm').format(ticket.fechaCierre)}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ID: ${ticket.id.substring(0, 12)}...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Apertura: ${DateFormat('dd/MM HH:mm').format(ticket.fechaApertura)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    Text(
+                      'Cierre: ${DateFormat('dd/MM HH:mm').format(ticket.fechaCierre)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
               ElevatedButton.icon(
                 onPressed: () => _verTicketCompleto(ticket),
@@ -1324,7 +1261,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
             final precio = (producto['precio'] as num?)?.toDouble() ?? 0.0;
             final nota = producto['nota'] ?? '';
             final total = precio * cantidad;
-
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Column(
@@ -1485,18 +1421,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-
       final pdfBytes = await generateTicketPdf(cuenta);
-
       if (mounted) Navigator.pop(context);
-
       if (mounted) {
         await _mostrarDialogoTicketReimpresion(pdfBytes, cuenta);
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
-
-      print('❌ Error al reimprimir ticket: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1515,18 +1446,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-
       final pdfBytes = await generateTicketPdf(cuenta);
-
       if (mounted) Navigator.pop(context);
-
       if (mounted) {
         await _mostrarDialogoTicketReimpresion(pdfBytes, cuenta);
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
-
-      print('❌ Error al ver ticket: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1600,7 +1526,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   Widget _buildCajasCerradas(ReportData data) {
     final cierres = data['cierres'] as List<Map<String, dynamic>>? ?? [];
-
     return ContentCard(
       title: 'Detalle de Cierres de Caja (${cierres.length})',
       child: cierres.isEmpty
@@ -1619,13 +1544,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     (cierre['fondo_inicial'] as num?)?.toDouble() ?? 0.0;
                 final efectivoContado =
                     (cierre['efectivoContado'] as num?)?.toDouble() ?? 0.0;
-
                 final color = diferencia == 0
                     ? Colors.green
                     : diferencia > 0
                     ? Colors.orange
                     : Colors.red;
-
                 return Column(
                   children: [
                     ListTile(
