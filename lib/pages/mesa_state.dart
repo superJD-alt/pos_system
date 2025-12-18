@@ -7,15 +7,29 @@ class MesaState extends ChangeNotifier {
     return _instance;
   }
 
+  Map<int, String> _foliosMesa = {}; // mesa -> folio
+
+  void guardarFolioMesa(int numeroMesa, String folio) {
+    _foliosMesa[numeroMesa] = folio;
+    notifyListeners();
+  }
+
+  String? obtenerFolioMesa(int numeroMesa) {
+    return _foliosMesa[numeroMesa];
+  }
+
   MesaState._internal();
 
   // Mapa para almacenar el estado de cada mesa
   final Map<int, bool> _mesasOcupadas = {};
 
-  // ✅ NUEVO: Mapa separado para pedidos ENVIADOS a cocina
+  // ✅ NUEVO: Mapa para almacenar qué mesero ocupa cada mesa
+  final Map<int, String> _meserosPorMesa = {};
+
+  // Mapa separado para pedidos ENVIADOS a cocina
   final Map<int, List<Map<String, dynamic>>> _pedidosEnviadosPorMesa = {};
 
-  // Obtener pedidos ENVIADOS de una mesa (los que tienen mesero y fecha)
+  // Obtener pedidos ENVIADOS de una mesa
   List<Map<String, dynamic>> obtenerPedidosEnviados(int numeroMesa) {
     return _pedidosEnviadosPorMesa[numeroMesa] ?? [];
   }
@@ -26,15 +40,53 @@ class MesaState extends ChangeNotifier {
   // Mapa para almacenar el número de comensales por mesa
   final Map<int, int> _comensalesPorMesa = {};
 
-  // ✅ NUEVO: Variable para guardar el nombre del mesero actual
+  // Variable para guardar el nombre del mesero actual
   String _meseroActual = "";
 
-  // ✅ NUEVO: Getter para obtener el mesero actual
+  // Getter para obtener el mesero actual
   String get meseroActual => _meseroActual;
 
-  // ✅ NUEVO: Método para establecer el mesero después del login
+  // ✅ NUEVO: Obtener el mesero que ocupa una mesa específica
+  String? obtenerMeseroDeMesa(int numeroMesa) {
+    return _meserosPorMesa[numeroMesa];
+  }
+
+  // ✅ NUEVO: Verificar si el mesero actual puede acceder a una mesa
+  bool puedeAccederMesa(int numeroMesa) {
+    // Si la mesa no está ocupada, cualquiera puede acceder
+    if (!estaMesaOcupada(numeroMesa)) {
+      return true;
+    }
+
+    // Si está ocupada, solo el mesero que la ocupó puede acceder
+    final meseroDeLaMesa = _meserosPorMesa[numeroMesa];
+    return meseroDeLaMesa == _meseroActual;
+  }
+
+  // ✅ NUEVO: Obtener todas las mesas del mesero actual
+  List<int> obtenerMesasDelMeseroActual() {
+    return _meserosPorMesa.entries
+        .where((entry) => entry.value == _meseroActual)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  // ✅ NUEVO: Obtener mesas ocupadas por otros meseros
+  List<int> obtenerMesasDeOtrosMeseros() {
+    return _meserosPorMesa.entries
+        .where(
+          (entry) =>
+              entry.value != _meseroActual && _mesasOcupadas[entry.key] == true,
+        )
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  // Método para establecer el mesero después del login
   void establecerMesero(String nombreMesero) {
     _meseroActual = nombreMesero;
+    print('👤 Mesero establecido: $_meseroActual');
+    print('📊 Mesas actuales del mesero: ${obtenerMesasDelMeseroActual()}');
     notifyListeners();
   }
 
@@ -50,21 +102,35 @@ class MesaState extends ChangeNotifier {
         .toList();
   }
 
+  // ✅ MODIFICADO: Registrar qué mesero ocupa la mesa
   void ocuparMesa(int numeroMesa, int comensales) {
     _mesasOcupadas[numeroMesa] = true;
     _comensalesPorMesa[numeroMesa] = comensales;
+    _meserosPorMesa[numeroMesa] = _meseroActual; // 👈 NUEVO: Registrar mesero
+
     // Si no existe, inicializar lista vacía
     if (!_pedidosPorMesa.containsKey(numeroMesa)) {
       _pedidosPorMesa[numeroMesa] = [];
     }
+
+    print(
+      '🔵 Mesa $numeroMesa ocupada por $_meseroActual ($comensales comensales)',
+    );
     notifyListeners();
   }
 
+  // ✅ MODIFICADO: Limpiar también el registro del mesero
   void liberarMesa(int numeroMesa) {
+    final mesero = _meserosPorMesa[numeroMesa];
+
     _mesasOcupadas[numeroMesa] = false;
     _pedidosPorMesa.remove(numeroMesa);
-    _pedidosEnviadosPorMesa.remove(numeroMesa); // ✅ También limpiar enviados
+    _pedidosEnviadosPorMesa.remove(numeroMesa);
     _comensalesPorMesa.remove(numeroMesa);
+    _foliosMesa.remove(numeroMesa);
+    _meserosPorMesa.remove(numeroMesa); // 👈 NUEVO: Limpiar registro de mesero
+
+    print('🟢 Mesa $numeroMesa liberada (era de $mesero)');
     notifyListeners();
   }
 
@@ -73,13 +139,13 @@ class MesaState extends ChangeNotifier {
     return _pedidosPorMesa[numeroMesa] ?? [];
   }
 
-  // ✅ MODIFICADO: Guardar pedidos de una mesa CON el mesero
+  // Guardar pedidos de una mesa
   void guardarPedidos(int numeroMesa, List<Map<String, dynamic>> pedidos) {
     _pedidosPorMesa[numeroMesa] = List.from(pedidos);
     notifyListeners();
   }
 
-  // ✅ NUEVO: Método para agregar un pedido con toda la info
+  // Método para agregar un pedido con toda la info
   void agregarPedido(int numeroMesa, List<Map<String, dynamic>> alimentos) {
     if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) {
       _pedidosEnviadosPorMesa[numeroMesa] = [];
@@ -93,7 +159,7 @@ class MesaState extends ChangeNotifier {
 
     _pedidosEnviadosPorMesa[numeroMesa]!.add(pedido);
 
-    // ✅ Limpiar pedidos locales después de enviar
+    // Limpiar pedidos locales después de enviar
     _pedidosPorMesa[numeroMesa] = [];
 
     notifyListeners();
@@ -104,17 +170,16 @@ class MesaState extends ChangeNotifier {
     return _comensalesPorMesa[numeroMesa] ?? 0;
   }
 
-  // Limpiar todo el estado (opcional, para reiniciar la app)
+  // ✅ MODIFICADO: Limpiar todo incluyendo registros de meseros
   void limpiarTodo() {
     _mesasOcupadas.clear();
     _pedidosPorMesa.clear();
-    _pedidosEnviadosPorMesa.clear(); // ✅ Limpiar también los pedidos enviados
+    _pedidosEnviadosPorMesa.clear();
     _comensalesPorMesa.clear();
-    _meseroActual = ""; // ✅ Limpiar también el mesero
+    _meserosPorMesa.clear(); // 👈 NUEVO: Limpiar meseros
+    _meseroActual = "";
     notifyListeners();
   }
-
-  // ✅ AGREGAR al final de la clase MesaState, antes del último }
 
   // Obtener resumen completo de una mesa
   Map<String, dynamic> obtenerResumenMesa(int numeroMesa) {
@@ -122,6 +187,7 @@ class MesaState extends ChangeNotifier {
     final comensales = obtenerComensales(numeroMesa);
     final pedidosLocales = obtenerPedidos(numeroMesa);
     final pedidosEnviados = obtenerPedidosEnviados(numeroMesa);
+    final mesero = _meserosPorMesa[numeroMesa]; // 👈 NUEVO
 
     int totalProductos = 0;
     double totalGeneral = 0.0;
@@ -148,6 +214,8 @@ class MesaState extends ChangeNotifier {
       'totalGeneral': totalGeneral,
       'pedidosLocales': pedidosLocales.length,
       'pedidosEnviados': pedidosEnviados.length,
+      'mesero': mesero, // 👈 NUEVO: Incluir mesero en el resumen
+      'esMesaPropia': mesero == _meseroActual, // 👈 NUEVO
     };
   }
 

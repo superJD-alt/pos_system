@@ -11,6 +11,10 @@ import 'package:pos_system/pages/pdf_generator.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pos_system/models/auth_dialog.dart';
+import 'package:pos_system/pages/pdf_generator.dart'; // Tu generador actual
+import 'package:pos_system/models/printer_service.dart'; // El servicio que creamos
+import 'package:native_pdf_renderer/native_pdf_renderer.dart'; // Para convertir PDF a Imagen
+import 'package:pos_system/models/welirkca_printer.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -41,6 +45,15 @@ class _OrderPageState extends State<OrderPage> {
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
 
+  final WelirkcaPrinterService _printer = WelirkcaPrinterService(); //impresora
+
+  // ✅ NUEVAS VARIABLES para manejo de caja
+  String? _cajaActualId;
+  String? _cajeroNombre;
+  bool _cargandoCaja = false;
+
+  String? _ultimoFolioGenerado;
+
   Map<String, dynamic>?
   productoSeleccionado; //producto seleccionado actualmente en la tabla de orden
 
@@ -60,6 +73,7 @@ class _OrderPageState extends State<OrderPage> {
     // Cargar los pedidos existentes de esta mesa
     _cargarPedidosExistentes();
     _cargarProductosDesdeFirestore(); //cargar productos de la base de datos
+    _verificarCajaAbierta();
   }
 
   Future<void> _cargarProductosDesdeFirestore() async {
@@ -2674,6 +2688,7 @@ class _OrderPageState extends State<OrderPage> {
     final int numComensales = widget.comensales;
     final String numPedido =
         'CMA-${DateTime.now().millisecondsSinceEpoch % 10000}';
+    mesaState.guardarFolioMesa(widget.numeroMesa, numPedido);
 
     // Mostrar diálogo de confirmación
     showDialog(
@@ -3202,7 +3217,448 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
-  /// 💰 Cierra la cuenta, guarda, registra en TurnoState y genera el PDF
+  Future<void> _verificarCajaAbierta() async {
+    try {
+      setState(() => _cargandoCaja = true);
+
+      final snapshot = await _firestore
+          .collection('cajas')
+          .where('estado', isEqualTo: 'abierta')
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final cajaDoc = snapshot.docs.first;
+        setState(() {
+          _cajaActualId = cajaDoc.id;
+          _cajeroNombre = cajaDoc.data()['cajero'] ?? 'Cajero';
+          _cargandoCaja = false;
+        });
+        print('✅ Caja abierta encontrada: $_cajaActualId');
+      } else {
+        setState(() {
+          _cajaActualId = null;
+          _cajeroNombre = null;
+          _cargandoCaja = false;
+        });
+        print('⚠️ No hay caja abierta');
+      }
+    } catch (e) {
+      print('❌ Error verificando caja: $e');
+      setState(() => _cargandoCaja = false);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _mostrarDialogoDescuento({
+    required double totalOriginal,
+    required String numeroMesa,
+  }) async {
+    final formKey = GlobalKey<FormState>();
+    final montoController = TextEditingController();
+    final razonController = TextEditingController();
+    String tipoDescuento = 'porcentaje';
+    String categoriaDescuento = 'cortesia';
+    double descuentoCalculado = 0.0;
+    double totalConDescuento = totalOriginal;
+
+    final NumberFormat currencyFormat = NumberFormat.currency(
+      locale: 'en_US',
+      symbol: '\$',
+      decimalDigits: 2,
+    );
+
+    return await showDialog<Map<String, dynamic>?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          void calcularDescuento() {
+            final valor = double.tryParse(montoController.text) ?? 0.0;
+            if (tipoDescuento == 'porcentaje') {
+              descuentoCalculado = totalOriginal * (valor / 100);
+            } else {
+              descuentoCalculado = valor;
+            }
+            totalConDescuento = totalOriginal - descuentoCalculado;
+            if (totalConDescuento < 0) totalConDescuento = 0;
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.discount, color: Colors.purple),
+                SizedBox(width: 8),
+                Text('Aplicar Descuento'),
+              ],
+            ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Info de la cuenta
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.table_restaurant,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Mesa: $numeroMesa',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Total Original: ${currencyFormat.format(totalOriginal)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Tipo de descuento
+                    DropdownButtonFormField<String>(
+                      value: tipoDescuento,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de Descuento',
+                        prefixIcon: Icon(Icons.percent),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'porcentaje',
+                          child: Text('Porcentaje (%)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'monto_fijo',
+                          child: Text('Monto Fijo (\$)'),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        setDialogState(() {
+                          tipoDescuento = v!;
+                          calcularDescuento();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Categoría
+                    DropdownButtonFormField<String>(
+                      value: categoriaDescuento,
+                      decoration: const InputDecoration(
+                        labelText: 'Motivo del Descuento',
+                        prefixIcon: Icon(Icons.category),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'cortesia',
+                          child: Text('🎁 Cortesía de la Casa'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'promocion',
+                          child: Text('🎉 Promoción'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'error_servicio',
+                          child: Text('😔 Error en Servicio'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'error_cocina',
+                          child: Text('🍳 Error en Cocina'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'cliente_frecuente',
+                          child: Text('⭐ Cliente Frecuente'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'otro',
+                          child: Text('📝 Otro Motivo'),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        setDialogState(() => categoriaDescuento = v!);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Monto/Porcentaje
+                    TextFormField(
+                      controller: montoController,
+                      decoration: InputDecoration(
+                        labelText: tipoDescuento == 'porcentaje'
+                            ? 'Porcentaje (%)'
+                            : 'Monto (\$)',
+                        prefixIcon: Icon(
+                          tipoDescuento == 'porcentaje'
+                              ? Icons.percent
+                              : Icons.attach_money,
+                        ),
+                        border: const OutlineInputBorder(),
+                        helperText: tipoDescuento == 'porcentaje'
+                            ? 'Ejemplo: 10 para 10%'
+                            : 'Ejemplo: 50 para \$50',
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) {
+                        setDialogState(() => calcularDescuento());
+                      },
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Campo obligatorio';
+                        }
+                        final valor = double.tryParse(v);
+                        if (valor == null || valor <= 0) {
+                          return 'Debe ser mayor a 0';
+                        }
+                        if (tipoDescuento == 'porcentaje' && valor > 100) {
+                          return 'No puede ser mayor a 100%';
+                        }
+                        if (tipoDescuento == 'monto_fijo' &&
+                            valor > totalOriginal) {
+                          return 'No puede ser mayor al total';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Razón
+                    TextFormField(
+                      controller: razonController,
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción Detallada',
+                        prefixIcon: Icon(Icons.description),
+                        border: OutlineInputBorder(),
+                        helperText: 'Explica el motivo',
+                      ),
+                      maxLines: 3,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Campo obligatorio' : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Resumen
+                    if (montoController.text.isNotEmpty &&
+                        double.tryParse(montoController.text) != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.shade50,
+                              Colors.purple.shade100,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.purple.shade300),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '📊 RESUMEN DEL DESCUENTO',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.purple,
+                              ),
+                            ),
+                            const Divider(height: 16),
+                            _buildResumenRow(
+                              'Subtotal Original:',
+                              currencyFormat.format(totalOriginal),
+                              Colors.black87,
+                            ),
+                            _buildResumenRow(
+                              'Descuento (${tipoDescuento == 'porcentaje' ? '${montoController.text}%' : 'Fijo'}):',
+                              '- ${currencyFormat.format(descuentoCalculado)}',
+                              Colors.red.shade700,
+                            ),
+                            const Divider(height: 16),
+                            _buildResumenRow(
+                              'TOTAL A PAGAR:',
+                              currencyFormat.format(totalConDescuento),
+                              Colors.green.shade700,
+                              isBold: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Advertencia
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'El descuento se registrará en la caja y ticket',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check),
+                label: const Text('Aplicar Descuento'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    calcularDescuento();
+                    Navigator.pop(context, {
+                      'tipo_descuento': tipoDescuento,
+                      'categoria_descuento': categoriaDescuento,
+                      'valor_descuento': double.parse(montoController.text),
+                      'monto_descuento': descuentoCalculado,
+                      'razon': razonController.text,
+                      'total_original': totalOriginal,
+                      'total_con_descuento': totalConDescuento,
+                    });
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildResumenRow(
+    String label,
+    String value,
+    Color color, {
+    bool isBold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isBold ? 16 : 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isBold ? 18 : 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔹 PASO 6: NUEVO MÉTODO - Registrar descuento en caja
+  Future<void> _registrarDescuentoEnCaja({
+    required String cuentaId,
+    required Map<String, dynamic> descuentoInfo,
+  }) async {
+    if (_cajaActualId == null) {
+      print('⚠️ No hay caja abierta, no se registrará el descuento');
+      return;
+    }
+
+    try {
+      // 1. Registrar movimiento
+      await _firestore.collection('movimientos_caja').add({
+        'cajaId': _cajaActualId,
+        'cuentaId': cuentaId,
+        'fecha': FieldValue.serverTimestamp(),
+        'tipo': 'descuento',
+        'categoria': descuentoInfo['categoria_descuento'],
+        'tipoDescuento': descuentoInfo['tipo_descuento'],
+        'valorDescuento': descuentoInfo['valor_descuento'],
+        'monto': descuentoInfo['monto_descuento'],
+        'descripcion': descuentoInfo['razon'],
+        'cajero': _cajeroNombre ?? 'Sistema',
+        'mesa': widget.numeroMesa.toString(),
+        'totalOriginal': descuentoInfo['total_original'],
+        'totalConDescuento': descuentoInfo['total_con_descuento'],
+      });
+
+      // 2. Actualizar totales de caja
+      await _firestore.collection('cajas').doc(_cajaActualId).update({
+        'total_descuentos': FieldValue.increment(
+          descuentoInfo['monto_descuento'],
+        ),
+        'efectivo_esperado': FieldValue.increment(
+          -descuentoInfo['monto_descuento'],
+        ),
+      });
+
+      print(
+        '✅ Descuento registrado en caja: \$${descuentoInfo['monto_descuento']}',
+      );
+    } catch (e) {
+      print('❌ Error registrando descuento en caja: $e');
+      // No lanzamos error para no interrumpir el cierre de cuenta
+    }
+  }
+
   Future<void> _cerrarCuentaYGenerarPdf() async {
     if (ordenes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3213,13 +3669,126 @@ class _OrderPageState extends State<OrderPage> {
       return;
     }
 
-    // Confirmación al usuario antes de cerrar
+    // 1. Preguntar si desea aplicar descuento
+    final bool? aplicarDescuento = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Aplicar Descuento?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Mesa ${widget.numeroMesa}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Total: \$${totalGeneral.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('¿Deseas aplicar un descuento antes de cerrar?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, Cerrar Sin Descuento'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.discount),
+            label: const Text('Sí, Aplicar Descuento'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (aplicarDescuento == null) return;
+
+    double totalFinal = totalGeneral;
+    Map<String, dynamic>? descuentoInfo;
+
+    // 2. Si desea descuento, mostrar diálogo
+    if (aplicarDescuento) {
+      descuentoInfo = await _mostrarDialogoDescuento(
+        totalOriginal: totalGeneral,
+        numeroMesa: widget.numeroMesa.toString(),
+      );
+
+      if (descuentoInfo == null) return;
+      totalFinal = descuentoInfo['total_con_descuento'];
+    }
+
+    // 3. Confirmación final
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar Cierre de Cuenta'),
-        content: Text(
-          '¿Estás seguro de cerrar la cuenta de la Mesa ${widget.numeroMesa} por \$${totalGeneral.toStringAsFixed(2)}?',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mesa ${widget.numeroMesa}'),
+            const SizedBox(height: 12),
+            if (descuentoInfo != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.purple.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '💜 DESCUENTO APLICADO',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple,
+                      ),
+                    ),
+                    const Divider(),
+                    Text(
+                      'Subtotal: \$${descuentoInfo['total_original'].toStringAsFixed(2)}',
+                    ),
+                    Text(
+                      'Descuento: -\$${descuentoInfo['monto_descuento'].toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const Divider(),
+                    Text(
+                      'Total a pagar: \$${totalFinal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Total: \$${totalFinal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -3228,11 +3797,11 @@ class _OrderPageState extends State<OrderPage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Cerrar Cuenta',
-              style: TextStyle(color: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
             ),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Cerrar Cuenta'),
           ),
         ],
       ),
@@ -3240,18 +3809,14 @@ class _OrderPageState extends State<OrderPage> {
 
     if (confirm != true) return;
 
-    // 1. Obtención de datos necesarios
+    // 4. Preparar datos de la cuenta
     final mesero = mesaState.meseroActual.isNotEmpty
         ? mesaState.meseroActual
         : 'Mesero Genérico';
     final idCuenta = const Uuid().v4();
     final fechaCierre = DateTime.now();
-    // Asumimos una fecha de apertura simple para el ticket
     final fechaApertura = fechaCierre.subtract(const Duration(minutes: 60));
-    final numeroMesa = widget.numeroMesa;
-    final comensales = widget.comensales;
 
-    // Filtrar solo los datos relevantes para la cuenta cerrada
     final productosList = ordenes.map<Map<String, dynamic>>((item) {
       return {
         'nombre': item['nombre'] as String,
@@ -3259,7 +3824,7 @@ class _OrderPageState extends State<OrderPage> {
         'cantidad': item['cantidad'] as int,
         'total': item['total'] as double,
         'nota': item['nota'] ?? '',
-        'enviado': item['enviado'] ?? false, // Incluir estado enviado
+        'enviado': item['enviado'] ?? false,
       };
     }).toList();
 
@@ -3268,51 +3833,191 @@ class _OrderPageState extends State<OrderPage> {
       (sum, item) => sum + (item['cantidad'] as int),
     );
 
-    final totalCuenta = totalGeneral;
-
     final cuentaCerrada = CuentaCerrada(
       id: idCuenta,
-      numeroMesa: numeroMesa,
+      numeroMesa: widget.numeroMesa,
       mesero: mesero,
-      comensales: comensales,
+      comensales: widget.comensales,
       fechaApertura: fechaApertura,
       fechaCierre: fechaCierre,
       productos: productosList,
       totalItems: totalItems,
-      totalCuenta: totalCuenta,
+      totalCuenta: totalFinal,
+      folio: mesaState.obtenerFolioMesa(widget.numeroMesa),
+      descuentoAplicado: descuentoInfo != null ? true : null,
+      descuentoTipo: descuentoInfo?['tipo_descuento'],
+      descuentoCategoria: descuentoInfo?['categoria_descuento'],
+      descuentoValor: descuentoInfo?['valor_descuento'],
+      descuentoMonto: descuentoInfo?['monto_descuento'],
+      descuentoRazon: descuentoInfo?['razon'],
+      totalOriginal: descuentoInfo?['total_original'],
     );
 
     try {
-      // 2. Guardar en Firestore
+      // 5. Guardar cuenta en Firestore
       await _firestore
           .collection('cuentasCerradas')
           .doc(idCuenta)
           .set(cuentaCerrada.toMap());
 
-      // 3. Registrar en TurnoState
+      // 6. Registrar descuento en caja (si aplica)
+      if (descuentoInfo != null) {
+        await _registrarDescuentoEnCaja(
+          cuentaId: idCuenta,
+          descuentoInfo: descuentoInfo,
+        );
+      }
+
+      // 7. Registrar en TurnoState
       turnoState.agregarCuentaCerrada(cuentaCerrada);
 
-      // 4. Generar el PDF
+      // 8. Generar PDF
       final pdfBytes = await generateTicketPdf(cuentaCerrada);
 
-      // 5. Mostrar el diálogo e impresión
+      // ════════════════════════════════════════════════════════════════
+      // 🖨️ NUEVO: IMPRIMIR EN IMPRESORA TÉRMICA BLUETOOTH
+      // ════════════════════════════════════════════════════════════════
+      try {
+        // Generar el ticket en formato texto
+        final String ticketTexto = _generarTicketTexto(
+          cuentaCerrada,
+          descuentoInfo,
+        );
+
+        // Imprimir el texto
+        await _printer.printText(ticketTexto);
+
+        // Cortar el papel
+        await _printer.cutPaper();
+
+        // Hacer beep de confirmación
+        await _printer.beep();
+
+        print('✅ Ticket impreso en impresora térmica');
+      } catch (e) {
+        print('⚠️ Error al imprimir en impresora térmica: $e');
+        // No interrumpir el flujo si falla la impresión
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Advertencia: Error al imprimir ticket: $e'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+      // ════════════════════════════════════════════════════════════════
+
+      // 9. Mostrar diálogo con vista previa PDF
       await _mostrarDialogoTicket(pdfBytes, cuentaCerrada);
 
-      // 6. Usar liberarMesa (limpiar y desocupar)
+      // 10. Liberar mesa
       mesaState.liberarMesa(widget.numeroMesa);
 
-      // 7. Navegar de vuelta
+      // 11. Navegar
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              descuentoInfo != null
+                  ? '✅ Cuenta cerrada con descuento de \$${descuentoInfo['monto_descuento'].toStringAsFixed(2)}'
+                  : '✅ Cuenta cerrada e impresa exitosamente',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
         Navigator.pop(context, true);
       }
     } catch (e) {
-      print('❌ Error al cerrar cuenta y generar PDF: $e');
+      print('❌ Error al cerrar cuenta: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al procesar el cierre de cuenta: $e')),
         );
       }
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 🆕 MÉTODO NUEVO: Generar ticket en formato texto para impresora térmica
+  // ════════════════════════════════════════════════════════════════
+  String _generarTicketTexto(
+    CuentaCerrada cuenta,
+    Map<String, dynamic>? descuentoInfo,
+  ) {
+    final buffer = StringBuffer();
+
+    // Ancho de 32 caracteres para impresora de 58mm
+    buffer.writeln('================================');
+    buffer.writeln('      PARRILLA VILLA');
+    buffer.writeln('================================');
+    buffer.writeln('');
+
+    // Información de la mesa
+    buffer.writeln('TICKET DE VENTA');
+    buffer.writeln('--------------------------------');
+    buffer.writeln('Mesa: ${cuenta.numeroMesa}');
+    buffer.writeln('Mesero: ${cuenta.mesero}');
+    buffer.writeln('Comensales: ${cuenta.comensales}');
+    if (cuenta.folio != null) {
+      buffer.writeln('Folio: ${cuenta.folio}');
+    }
+    buffer.writeln(
+      'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(cuenta.fechaCierre)}',
+    );
+    buffer.writeln('--------------------------------');
+    buffer.writeln('');
+
+    // Productos
+    buffer.writeln('PRODUCTOS:');
+    buffer.writeln('--------------------------------');
+
+    for (var producto in cuenta.productos) {
+      final nombre = producto['nombre'] as String;
+      final cantidad = producto['cantidad'] as int;
+      final precio = producto['precio'] as double;
+      final total = producto['total'] as double;
+
+      // Línea del producto: "2x Producto     $100.00"
+      buffer.writeln('${cantidad}x $nombre');
+      buffer.writeln(
+        '    \$${precio.toStringAsFixed(2)} x $cantidad = \$${total.toStringAsFixed(2)}',
+      );
+
+      // Nota si existe
+      final nota = producto['nota'] as String?;
+      if (nota != null && nota.isNotEmpty) {
+        buffer.writeln('    Nota: $nota');
+      }
+    }
+
+    buffer.writeln('--------------------------------');
+    buffer.writeln('');
+
+    // Totales
+    if (descuentoInfo != null) {
+      buffer.writeln(
+        'Subtotal:    \$${descuentoInfo['total_original'].toStringAsFixed(2)}',
+      );
+      buffer.writeln(
+        'Descuento:  -\$${descuentoInfo['monto_descuento'].toStringAsFixed(2)}',
+      );
+      buffer.writeln('  (${descuentoInfo['razon']})');
+      buffer.writeln('--------------------------------');
+    }
+
+    buffer.writeln('');
+    buffer.writeln('TOTAL:       \$${cuenta.totalCuenta.toStringAsFixed(2)}');
+    buffer.writeln('');
+    buffer.writeln('================================');
+    buffer.writeln('   ¡Gracias por su visita!');
+    buffer.writeln('      Vuelva pronto');
+    buffer.writeln('================================');
+    buffer.writeln('');
+
+    return buffer.toString();
   }
 
   // Agregar este método en la clase _OrderPageState

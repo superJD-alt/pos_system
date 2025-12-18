@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_system/pages/order.dart';
 import 'mesa_state.dart';
 import 'package:flutter/services.dart';
+import 'dart:math';
 
 class CustomTable extends StatefulWidget {
   const CustomTable({super.key});
@@ -1023,15 +1024,131 @@ class _MesaBaseState extends State<MesaBase> {
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
 
-    return GestureDetector(
-      onTap: _mostrarTecladoComensales,
-      child: esCircular
-          ? _mesaCircular(comensales, estaOcupada)
-          : _mesaRectangular(comensales, estaOcupada),
+    return ListenableBuilder(
+      listenable: mesaState,
+      builder: (context, child) {
+        final bool esCircular = widget.cantidadPersonas == 2;
+        final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
+        final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+        final String? meseroDeLaMesa = mesaState.obtenerMeseroDeMesa(
+          widget.numeroMesa,
+        );
+        final bool esMesaPropia = mesaState.puedeAccederMesa(widget.numeroMesa);
+        final bool esMesaDeOtroMesero = estaOcupada && !esMesaPropia;
+
+        return GestureDetector(
+          onTap: () {
+            // ✅ Verificar si puede acceder antes de mostrar teclado
+            if (esMesaDeOtroMesero) {
+              _mostrarMensajeMesaBloqueada(meseroDeLaMesa!);
+            } else {
+              _mostrarTecladoComensales();
+            }
+          },
+          child: esCircular
+              ? _mesaCircular(
+                  comensales,
+                  estaOcupada,
+                  esMesaDeOtroMesero,
+                  meseroDeLaMesa,
+                )
+              : _mesaRectangular(
+                  comensales,
+                  estaOcupada,
+                  esMesaDeOtroMesero,
+                  meseroDeLaMesa,
+                ),
+        );
+      },
     );
   }
 
-  Widget _mesaCircular(int? comensales, bool estaOcupada) {
+  void _mostrarMensajeMesaBloqueada(String nombreMesero) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.lock, color: Colors.red, size: 28),
+            SizedBox(width: 10),
+            Text('Mesa Bloqueada'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red, width: 2),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.person, color: Colors.red, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Esta mesa está siendo atendida por:',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    nombreMesero.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Solo el mesero asignado puede acceder a esta mesa',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mesaCircular(
+    int? comensales,
+    bool estaOcupada,
+    bool esMesaDeOtroMesero,
+    String? meseroDeLaMesa,
+  ) {
     final minDimension = widget.ancho < widget.alto
         ? widget.ancho
         : widget.alto;
@@ -1043,6 +1160,16 @@ class _MesaBaseState extends State<MesaBase> {
     final double sillaSize = 30;
     final double diametroTotal = 2 * (chairCenterDistance + sillaSize / 2);
 
+    // ✅ Determinar color según estado
+    Color mesaColor;
+    if (esMesaDeOtroMesero) {
+      mesaColor = Colors.grey[700]!;
+    } else if (estaOcupada) {
+      mesaColor = Colors.red[700]!;
+    } else {
+      mesaColor = Colors.green[600]!;
+    }
+
     return SizedBox(
       width: diametroTotal,
       height: diametroTotal,
@@ -1053,7 +1180,7 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              color: estaOcupada ? Colors.red[700] : Colors.green[600],
+              color: mesaColor,
               borderRadius: BorderRadius.circular(widget.ancho * 0.5),
               boxShadow: [
                 BoxShadow(
@@ -1063,30 +1190,51 @@ class _MesaBaseState extends State<MesaBase> {
                 ),
               ],
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${widget.numeroMesa}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${widget.numeroMesa}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (comensales != null)
+                        Text(
+                          '$comensales',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: comensalesFontSize,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
-                  if (comensales != null)
-                    Text(
-                      '$comensales',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: comensalesFontSize,
-                        fontWeight: FontWeight.w500,
+                ),
+                if (esMesaDeOtroMesero)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.red,
+                        size: 16,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
           ...List.generate(widget.cantidadPersonas, (i) {
@@ -1115,9 +1263,14 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  Widget _mesaRectangular(int? comensales, bool estaOcupada) {
+  // Reemplaza el método _mesaRectangular completo en custom_table.dart
+  Widget _mesaRectangular(
+    int? comensales,
+    bool estaOcupada,
+    bool esMesaDeOtroMesero,
+    String? meseroDeLaMesa,
+  ) {
     final List<Widget> comensalesWidgets = [];
-
     final double separacion = 20;
     final double sillaSize = 30;
 
@@ -1188,12 +1341,20 @@ class _MesaBaseState extends State<MesaBase> {
         widget.ancho + 2 * (separacion + sillaSize / 2);
     final double containerHeight =
         widget.alto + 2 * (separacion + sillaSize / 2);
-
     final minDimension = widget.ancho < widget.alto
         ? widget.ancho
         : widget.alto;
     final fontSize = minDimension * 0.22;
     final comensalesFontSize = fontSize * 0.70;
+
+    Color mesaColor;
+    if (esMesaDeOtroMesero) {
+      mesaColor = Colors.grey[700]!;
+    } else if (estaOcupada) {
+      mesaColor = Colors.red[700]!;
+    } else {
+      mesaColor = Colors.green[600]!;
+    }
 
     return SizedBox(
       width: containerWidth,
@@ -1205,7 +1366,7 @@ class _MesaBaseState extends State<MesaBase> {
             width: widget.ancho,
             height: widget.alto,
             decoration: BoxDecoration(
-              color: estaOcupada ? Colors.red[700] : Colors.green[600],
+              color: mesaColor,
               borderRadius: BorderRadius.circular(minDimension * 0.075),
               boxShadow: [
                 BoxShadow(
@@ -1215,30 +1376,51 @@ class _MesaBaseState extends State<MesaBase> {
                 ),
               ],
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${widget.numeroMesa}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${widget.numeroMesa}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (comensales != null)
+                        Text(
+                          '$comensales',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: comensalesFontSize,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
-                  if (comensales != null)
-                    Text(
-                      '$comensales',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: comensalesFontSize,
-                        fontWeight: FontWeight.w500,
+                ),
+                if (esMesaDeOtroMesero)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.red,
+                        size: 16,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
           ...comensalesWidgets,
@@ -1255,7 +1437,6 @@ class _MesaBaseState extends State<MesaBase> {
     double size,
   ) {
     final bool isComensalPresent = index < comensalesCount;
-
     final double containerWidth = widget.ancho + 2 * (20 + 30 / 2);
     final double containerHeight = widget.alto + 2 * (20 + 30 / 2);
 

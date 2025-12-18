@@ -32,6 +32,10 @@
 	<string>Necesitamos acceso a la cámara para tomar fotos</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Necesitamos acceso a la galería para seleccionar fotos</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Necesitamos acceso a Bluetooth para conectar con la impresora térmica</string>
+<key>NSBluetoothPeripheralUsageDescription</key>
+<string>Necesitamos acceso a Bluetooth para conectar con la impresora térmica</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -1,15 +1,24 @@
-// Puedes colocar esto en un archivo separado como /utils/pdf_generator.dart
-import 'package:flutter/services.dart'; // Necesario para Uint8List
+// Versión con debug para identificar el problema del descuento
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
-import '../models/cuenta_cerrada.dart'; // Ajusta la ruta a tu modelo
+import '../models/cuenta_cerrada.dart';
 
 Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
   final pdf = pw.Document();
   final formatCurrency = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
 
-  // 🎯 CARGAR EL SELLO/LOGO DE LA EMPRESA DESDE ASSETS
+  // 🎯 DEBUG: Imprimir valores del descuento
+  print('=== DEBUG DESCUENTO ===');
+  print('descuentoAplicado: ${cuenta.descuentoAplicado}');
+  print('descuentoMonto: ${cuenta.descuentoMonto}');
+  print('descuentoCategoria: ${cuenta.descuentoCategoria}');
+  print('descuentoRazon: ${cuenta.descuentoRazon}');
+  print('totalOriginal: ${cuenta.totalOriginal}');
+  print('totalCuenta: ${cuenta.totalCuenta}');
+  print('=======================');
+
   final logoImage = await rootBundle.load('assets/images/icon_pos2.png');
   final logoBytes = logoImage.buffer.asUint8List();
 
@@ -24,13 +33,11 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            // 🎯 SELLO/LOGO DE LA EMPRESA EN LA PARTE SUPERIOR
             pw.Center(
               child: pw.Image(pw.MemoryImage(logoBytes), width: 90, height: 90),
             ),
             pw.SizedBox(height: 5),
 
-            // --- Encabezado ---
             pw.Center(
               child: pw.Text(
                 'PARRILLA VILLA',
@@ -72,7 +79,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
 
             pw.Divider(thickness: 0.5),
 
-            // --- Detalles de la Venta ---
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -120,7 +126,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
 
             pw.Divider(thickness: 0.5),
 
-            // --- Títulos de la tabla de items ---
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -156,7 +161,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
             ),
             pw.Divider(thickness: 0.5),
 
-            // --- Items de la cuenta ---
             ...cuenta.productos.map((item) {
               final cantidad = item['cantidad'] as int;
               final nombre = item['nombre'] as String;
@@ -225,7 +229,73 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
             }).toList(),
             pw.Divider(thickness: 0.5),
 
-            // --- Totales ---
+            // 🔧 VERSIÓN CORREGIDA: Verificar si hay descuento con múltiples condiciones
+            if (cuenta.descuentoAplicado == true &&
+                cuenta.descuentoMonto != null &&
+                cuenta.descuentoMonto! > 0)
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.purple),
+                  borderRadius: const pw.BorderRadius.all(
+                    pw.Radius.circular(4),
+                  ),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Subtotal:', style: pw.TextStyle(fontSize: 10)),
+                        pw.Text(
+                          formatCurrency.format(
+                            cuenta.totalOriginal ?? cuenta.totalCuenta,
+                          ),
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'Descuento (${cuenta.descuentoCategoria ?? 'Aplicado'}):',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.red,
+                          ),
+                        ),
+                        pw.Text(
+                          '-${formatCurrency.format(cuenta.descuentoMonto!)}',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (cuenta.descuentoRazon != null &&
+                        cuenta.descuentoRazon!.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 4),
+                        child: pw.Text(
+                          'Motivo: ${cuenta.descuentoRazon}',
+                          style: pw.TextStyle(
+                            fontSize: 8,
+                            fontStyle: pw.FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            if (cuenta.descuentoAplicado == true &&
+                cuenta.descuentoMonto != null &&
+                cuenta.descuentoMonto! > 0)
+              pw.SizedBox(height: 8),
+
             pw.Align(
               alignment: pw.Alignment.centerRight,
               child: pw.Column(
@@ -243,7 +313,6 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
             ),
             pw.SizedBox(height: 10),
 
-            // --- Pie de página ---
             pw.Center(
               child: pw.Text(
                 '¡GRACIAS POR SU VISITA!',

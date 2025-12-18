@@ -34,6 +34,7 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                     children: [
                       _buildVentasRecientes(),
                       const SizedBox(height: 24),
+                      _tarjetaInventarioBajo(),
                       _buildCuentasAbiertas(),
                     ],
                   ),
@@ -137,6 +138,242 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
     );
   }
 
+  Widget _tarjetaInventarioBajo() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('inventario')
+          .where('stock', isLessThanOrEqualTo: 5)
+          .orderBy(
+            'stock',
+            descending: false,
+          ) // Ordenar por menor stock primero
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final productosBajos = snapshot.data!.docs;
+
+        if (productosBajos.isEmpty) {
+          return const SizedBox(); // No mostrar nada si todo está bien
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Encabezado con alerta
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Inventario Bajo',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${productosBajos.length} producto(s) requieren atención',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              // Lista de productos con bajo stock
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: productosBajos.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final producto =
+                      productosBajos[index].data() as Map<String, dynamic>;
+                  final nombre = producto['nombre'] ?? 'Producto sin nombre';
+                  final stock = (producto['stock'] as num?)?.toInt() ?? 0;
+                  final unidad = producto['unidad'] ?? 'unidades';
+                  final categoria = producto['categoria'] ?? 'Sin categoría';
+
+                  // Color según nivel de stock
+                  Color stockColor;
+                  Color stockBgColor;
+                  IconData stockIcon;
+
+                  if (stock == 0) {
+                    stockColor = Colors.red;
+                    stockBgColor = Colors.red.shade50;
+                    stockIcon = Icons.error;
+                  } else if (stock <= 2) {
+                    stockColor = Colors.orange.shade700;
+                    stockBgColor = Colors.orange.shade50;
+                    stockIcon = Icons.warning;
+                  } else {
+                    stockColor = Colors.yellow.shade700;
+                    stockBgColor = Colors.yellow.shade50;
+                    stockIcon = Icons.info;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        // Icono de alerta
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: stockBgColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(stockIcon, color: stockColor, size: 20),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        // Información del producto
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nombre,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                categoria,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        // Stock disponible
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: stockBgColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: stockColor.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                '$stock',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: stockColor,
+                                ),
+                              ),
+                              Text(
+                                unidad,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: stockColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // Botón para ver el inventario completo (opcional)
+              if (productosBajos.length > 5)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        // Navegar a la pantalla de inventario
+                      },
+                      icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                      label: const Text('Ver inventario completo'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMetricCard(
     String title,
     String value,
@@ -233,11 +470,6 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1E293B),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.arrow_forward, size: 16),
-                  label: const Text('Ver todas'),
                 ),
               ],
             ),
@@ -382,7 +614,6 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
     }
   }
 
-  // Estado de Caja
   Widget _buildEstadoCaja() {
     return Container(
       decoration: BoxDecoration(
@@ -415,22 +646,32 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
             stream: _firestore
                 .collection('cajas')
                 .where('estado', isEqualTo: 'abierta')
-                .where(
-                  'fecha',
-                  isGreaterThanOrEqualTo: Timestamp.fromDate(_getStartOfDay()),
-                  isLessThan: Timestamp.fromDate(_getEndOfDay()),
-                )
                 .limit(1)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              // Mientras carga
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.all(20),
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
 
-              if (snapshot.data!.docs.isEmpty) {
+              // Si hay error
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
+                    child: Text(
+                      'Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                );
+              }
+
+              // Si no hay caja abierta
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -456,7 +697,9 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
-                        onPressed: () {},
+                        onPressed: () {
+                          // Aquí puedes navegar a la pantalla de abrir caja
+                        },
                         icon: const Icon(Icons.add),
                         label: const Text('Abrir Caja'),
                         style: ElevatedButton.styleFrom(
@@ -473,9 +716,43 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                 );
               }
 
-              final caja =
-                  snapshot.data!.docs.first.data() as Map<String, dynamic>;
-              final timestamp = caja['fechaApertura'] as Timestamp?;
+              // Obtener los datos de la caja
+              final cajaDoc = snapshot.data!.docs.first;
+              final caja = cajaDoc.data() as Map<String, dynamic>;
+
+              // 🔍 DEBUG: Imprimir todos los campos de la caja
+              print('=== DATOS DE CAJA ===');
+              print('Campos disponibles: ${caja.keys.toList()}');
+              print('Datos completos: $caja');
+              print('====================');
+
+              // ✅ Extraer información con los nombres correctos del archivo caja.dart
+              final nombreCajero = caja['cajero'] ?? 'Usuario desconocido';
+
+              final fondoInicial =
+                  (caja['fondo_inicial'] as num?)?.toDouble() ?? 0.0;
+              final totalEfectivo =
+                  (caja['total_efectivo'] as num?)?.toDouble() ?? 0.0;
+              final totalTarjeta =
+                  (caja['total_tarjeta'] as num?)?.toDouble() ?? 0.0;
+              final totalTransferencia =
+                  (caja['total_transferencia'] as num?)?.toDouble() ?? 0.0;
+              final totalPropinas =
+                  (caja['total_propinas'] as num?)?.toDouble() ?? 0.0;
+              final totalEgresos =
+                  (caja['total_egresos'] as num?)?.toDouble() ?? 0.0;
+
+              // Calcular monto actual en caja
+              final montoActual =
+                  fondoInicial +
+                  totalEfectivo +
+                  totalTarjeta +
+                  totalTransferencia +
+                  totalPropinas -
+                  totalEgresos;
+
+              // Obtener fecha de apertura
+              final timestamp = caja['fecha_apertura'] as Timestamp?;
               final fechaApertura = timestamp?.toDate() ?? DateTime.now();
 
               return Padding(
@@ -483,6 +760,7 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Estado: Caja Abierta
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -505,29 +783,38 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Usuario que abrió la caja
+                    _buildCajaDetailRow('Cajero', nombreCajero),
+                    const SizedBox(height: 12),
+
+                    // Hora de apertura
                     _buildCajaDetailRow(
-                      'Cajero',
-                      caja['nombreCajero'] ?? 'N/A',
+                      'Hora de Apertura',
+                      DateFormat('HH:mm a').format(fechaApertura),
                     ),
                     const SizedBox(height: 12),
+
+                    // Fecha de apertura
                     _buildCajaDetailRow(
-                      'Apertura',
-                      DateFormat('dd/MM/yyyy HH:mm').format(fechaApertura),
+                      'Fecha',
+                      DateFormat('dd/MM/yyyy').format(fechaApertura),
                     ),
+
                     const SizedBox(height: 12),
+
+                    // Fondo inicial
                     _buildCajaDetailRow(
-                      'Monto Inicial',
-                      '\$${NumberFormat('#,##0.00').format((caja['montoInicial'] as num?)?.toDouble() ?? 0)}',
+                      'Fondo Inicial',
+                      '${NumberFormat('#,##0.00').format(fondoInicial)}',
                     ),
-                    const SizedBox(height: 12),
-                    _buildCajaDetailRow(
-                      'Ventas del día',
-                      '\$${NumberFormat('#,##0.00').format((caja['ventasDelDia'] as num?)?.toDouble() ?? 0)}',
-                    ),
+
                     const Divider(height: 32),
+
+                    // Monto actual en caja (total)
                     _buildCajaDetailRow(
                       'Total en Caja',
-                      '\$${NumberFormat('#,##0.00').format(((caja['montoInicial'] as num?)?.toDouble() ?? 0) + ((caja['ventasDelDia'] as num?)?.toDouble() ?? 0))}',
+                      '${NumberFormat('#,##0.00').format(montoActual)}',
                       isTotal: true,
                     ),
                   ],

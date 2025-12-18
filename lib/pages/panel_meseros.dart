@@ -7,6 +7,7 @@ import 'package:pos_system/pages/view_table.dart';
 import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/resumen_turno_page.dart';
 import 'package:pos_system/pages/apartadoBotellaPage.dart';
+import 'package:pos_system/pages/printer_settings.dart';
 
 class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
@@ -100,6 +101,21 @@ class _PanelMeserosState extends State<PanelMeseros> {
         title: const Text('Panel de Meseros'),
         backgroundColor: Colors.indigoAccent,
         foregroundColor: Colors.white,
+        actions: [
+          // ✅ NUEVO: Botón de configuración de impresora
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Configurar Impresora',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PrinterSettingsPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {

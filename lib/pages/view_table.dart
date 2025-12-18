@@ -192,7 +192,7 @@ class MesaBase extends StatefulWidget {
 class _MesaBaseState extends State<MesaBase> {
   final MesaState mesaState = MesaState();
 
-  void _mostrarInformacionMesa() {
+  void _mostrarInformacionMesa(String? meseroDeLaMesa) {
     final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
 
@@ -235,24 +235,48 @@ class _MesaBaseState extends State<MesaBase> {
                       color: mesaOcupada ? Colors.red : Colors.green,
                     ),
                   ),
-                  if (mesaOcupada && comensales != null) ...[
+                  if (mesaOcupada) ...[
                     const SizedBox(height: 12),
                     const Divider(),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.person, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Text(
-                          '$comensales comensal${comensales != 1 ? 'es' : ''}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+
+                    // ✅ Mostrar mesero
+                    if (meseroDeLaMesa != null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.person, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Mesero: ${meseroDeLaMesa.toUpperCase()}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Comensales
+                    if (comensales != null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.group, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$comensales comensal${comensales != 1 ? 'es' : ''}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -304,19 +328,32 @@ class _MesaBaseState extends State<MesaBase> {
 
   @override
   Widget build(BuildContext context) {
-    final bool esCircular = widget.cantidadPersonas == 2;
-    final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
-    final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+    // ✅ Usar ListenableBuilder para reaccionar a cambios
+    return ListenableBuilder(
+      listenable: mesaState,
+      builder: (context, child) {
+        final bool esCircular = widget.cantidadPersonas == 2;
+        final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
+        final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+        final String? meseroDeLaMesa = mesaState.obtenerMeseroDeMesa(
+          widget.numeroMesa,
+        );
 
-    return GestureDetector(
-      onTap: _mostrarInformacionMesa,
-      child: esCircular
-          ? _mesaCircular(comensales, estaOcupada)
-          : _mesaRectangular(comensales, estaOcupada),
+        return GestureDetector(
+          onTap: () => _mostrarInformacionMesa(meseroDeLaMesa),
+          child: esCircular
+              ? _mesaCircular(comensales, estaOcupada, meseroDeLaMesa)
+              : _mesaRectangular(comensales, estaOcupada, meseroDeLaMesa),
+        );
+      },
     );
   }
 
-  Widget _mesaCircular(int? comensales, bool estaOcupada) {
+  Widget _mesaCircular(
+    int? comensales,
+    bool estaOcupada,
+    String? meseroDeLaMesa,
+  ) {
     double radio = (max(widget.ancho, widget.alto) / 2) + 30;
     double diametroTotal = (radio + 20) * 2;
 
@@ -386,7 +423,11 @@ class _MesaBaseState extends State<MesaBase> {
     );
   }
 
-  Widget _mesaRectangular(int? comensales, bool estaOcupada) {
+  Widget _mesaRectangular(
+    int? comensales,
+    bool estaOcupada,
+    String? meseroDeLaMesa,
+  ) {
     const double separacion = 20;
     List<Widget> comensalesWidgets = [];
 
