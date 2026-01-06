@@ -7,7 +7,7 @@ import Flutter
     private var printerChannel: FlutterMethodChannel?
     private var printerSDK: PrinterSDK?
     private var discoveredPrinters: [Printer] = []
-
+    
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -21,21 +21,21 @@ import Flutter
             binaryMessenger: controller.binaryMessenger
         )
         
-        // Inicializar SDK - CORREGIDO: defaultPrinterSDK()
-        printerSDK = PrinterSDK.defaultPrinterSDK()
+        // Inicializar SDK
+        printerSDK = PrinterSDK.default()
         
         // Escuchar notificaciones del SDK
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(printerConnected),
-            name: NSNotification.Name(rawValue: PrinterConnectedNotification),
+            name: .PrinterConnected,
             object: nil
         )
         
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(printerDisconnected),
-            name: NSNotification.Name(rawValue: PrinterDisconnectedNotification),
+            name: .PrinterDisconnected,
             object: nil
         )
         
@@ -113,7 +113,7 @@ import Flutter
             case "printImage":
                 if let args = call.arguments as? [String: Any],
                    let imageBytes = args["imageBytes"] as? FlutterStandardTypedData {
-                    self.printImage(imageBytes: imageBytes, result: result)
+                    self.printImageFromBytes(imageBytes: imageBytes, result: result)
                 } else {
                     result(FlutterError(code: "INVALID_ARGS", message: "ImageBytes requerido", details: nil))
                 }
@@ -227,9 +227,9 @@ import Flutter
         result(nil)
     }
     
-    private func printImage(imageBytes: FlutterStandardTypedData, result: @escaping FlutterResult) {
+    private func printImageFromBytes(imageBytes: FlutterStandardTypedData, result: @escaping FlutterResult) {
         if let image = UIImage(data: imageBytes.data) {
-            printerSDK?.printImage(image)
+            printerSDK?.print(image)
             result(nil)
         } else {
             result(FlutterError(code: "INVALID_IMAGE", message: "No se pudo crear imagen", details: nil))

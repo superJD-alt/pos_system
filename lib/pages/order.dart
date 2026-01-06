@@ -13,7 +13,6 @@ import 'package:intl/intl.dart';
 import 'package:pos_system/models/auth_dialog.dart';
 import 'package:pos_system/pages/pdf_generator.dart'; // Tu generador actual
 import 'package:pos_system/models/printer_service.dart'; // El servicio que creamos
-import 'package:native_pdf_renderer/native_pdf_renderer.dart'; // Para convertir PDF a Imagen
 import 'package:pos_system/models/welirkca_printer.dart';
 
 class OrderPage extends StatefulWidget {

@@ -25,7 +25,7 @@ Future<Uint8List> generateTicketPdf(CuentaCerrada cuenta) async {
   pdf.addPage(
     pw.Page(
       pageFormat: const PdfPageFormat(
-        80 * PdfPageFormat.mm,
+        58 * PdfPageFormat.mm,
         double.infinity,
         marginAll: 4 * PdfPageFormat.mm,
       ),

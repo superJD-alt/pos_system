@@ -225,31 +225,51 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     }
 
     try {
-      await _printer.setPrintWidth(384); // 58mm
+      print('🖨️ Iniciando impresión de prueba...');
 
-      final testTicket =
-          '''
-================================
-    PRUEBA DE IMPRESORA
-================================
+      // 1. Configurar ancho para 58mm
+      await _printer.setPrintWidth(384);
+      print('✅ Ancho configurado: 384 (58mm)');
 
-Esta es una impresión de prueba
-para verificar que la impresora
-está funcionando correctamente.
+      // 2. Usar printTextImage en lugar de printText (más confiable)
+      await _printer.printTextImage("================================\n");
+      await _printer.printTextImage("    PRUEBA DE IMPRESORA\n");
+      await _printer.printTextImage("================================\n");
+      await _printer.printTextImage("\n");
 
---------------------------------
-Fecha: ${DateTime.now().toString().substring(0, 19)}
---------------------------------
+      await _printer.printTextImage("Esta es una impresion de\n");
+      await _printer.printTextImage("prueba para verificar que\n");
+      await _printer.printTextImage("la impresora funciona OK.\n");
+      await _printer.printTextImage("\n");
 
-✅ Si puedes leer esto, 
-   la impresora funciona bien!
+      await _printer.printTextImage("--------------------------------\n");
+      final now = DateTime.now();
+      await _printer.printTextImage(
+        "Fecha: ${now.day}/${now.month}/${now.year}\n",
+      );
+      await _printer.printTextImage(
+        "Hora: ${now.hour}:${now.minute.toString().padLeft(2, '0')}\n",
+      );
+      await _printer.printTextImage("--------------------------------\n");
+      await _printer.printTextImage("\n");
 
-================================
-''';
+      await _printer.printTextImage("Si puedes leer esto,\n");
+      await _printer.printTextImage("la impresora funciona bien!\n");
+      await _printer.printTextImage("\n");
+      await _printer.printTextImage("================================\n");
 
-      await _printer.printText(testTicket);
+      // 3. Saltos de línea adicionales antes de cortar
+      await _printer.printTextImage("\n\n\n");
+
+      print('✅ Texto enviado');
+
+      // 4. Cortar papel
       await _printer.cutPaper();
+      print('✅ Papel cortado');
+
+      // 5. Beep
       await _printer.beep();
+      print('✅ Beep enviado');
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -258,11 +278,41 @@ Fecha: ${DateTime.now().toString().substring(0, 19)}
         ),
       );
     } catch (e) {
+      print('❌ Error al imprimir: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error al imprimir: $e'),
           backgroundColor: Colors.red,
         ),
+      );
+    }
+  }
+
+  Future<void> _printSelfTest() async {
+    if (!_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Conecta una impresora primero'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      print('🔧 Ejecutando auto-test del SDK...');
+      await _printer.selfTest();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Auto-test ejecutado'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('❌ Error en auto-test: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -313,6 +363,20 @@ Fecha: ${DateTime.now().toString().substring(0, 19)}
 
             // Botones de acción
             if (_isConnected) ...[
+              // Botón de auto-test del SDK
+              ElevatedButton.icon(
+                onPressed: _printSelfTest,
+                icon: const Icon(Icons.build),
+                label: const Text('AUTO-TEST (SDK)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Botón de prueba normal
               ElevatedButton.icon(
                 onPressed: _printTest,
                 icon: const Icon(Icons.print),
@@ -324,6 +388,7 @@ Fecha: ${DateTime.now().toString().substring(0, 19)}
                 ),
               ),
               const SizedBox(height: 12),
+
               OutlinedButton.icon(
                 onPressed: _disconnect,
                 icon: const Icon(Icons.close),
