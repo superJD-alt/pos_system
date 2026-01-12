@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pos_system/models/producto.dart';
 import 'package:pos_system/pages/mesa_state.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/services.dart';
 import 'package:pos_system/pages/turno_state.dart';
 import 'package:pos_system/models/cuenta_cerrada.dart';
 import 'package:printing/printing.dart';
@@ -13,7 +14,8 @@ import 'package:intl/intl.dart';
 import 'package:pos_system/models/auth_dialog.dart';
 import 'package:pos_system/pages/pdf_generator.dart'; // Tu generador actual
 import 'package:pos_system/models/printer_service.dart'; // El servicio que creamos
-import 'package:pos_system/models/welirkca_printer.dart';
+import 'package:pos_system/pages/dual_printer_settings.dart';
+import 'package:pos_system/models/printer_manager.dart';
 
 class OrderPage extends StatefulWidget {
   final int numeroMesa;
@@ -44,7 +46,7 @@ class _OrderPageState extends State<OrderPage> {
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
 
-  final WelirkcaPrinterService _printer = WelirkcaPrinterService(); //impresora
+  final PrinterManager _printerManager = PrinterManager(); //impresora
 
   // ✅ NUEVAS VARIABLES para manejo de caja
   String? _cajaActualId;
@@ -73,6 +75,7 @@ class _OrderPageState extends State<OrderPage> {
     _cargarPedidosExistentes();
     _cargarProductosDesdeFirestore(); //cargar productos de la base de datos
     _verificarCajaAbierta();
+    _printerManager.cargarConfiguracion();
   }
 
   Future<void> _cargarProductosDesdeFirestore() async {
@@ -2659,7 +2662,7 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   void _enviarComanda() {
-    // 1. Contar productos NO enviados
+    // Contar productos NO enviados
     final productosNoEnviados = ordenes
         .where((item) => item['enviado'] != true)
         .toList();
@@ -2733,16 +2736,16 @@ class _OrderPageState extends State<OrderPage> {
               onPressed: () async {
                 Navigator.pop(dialogContext);
 
-                // Separar productos por destino
+                // ✅ Separar productos por destino usando la extensión
                 final productosCocina = productosNoEnviados
-                    .where((p) => !_esBarra(p))
+                    .where((p) => p.esCocina)
                     .toList();
                 final productosBarra = productosNoEnviados
-                    .where((p) => _esBarra(p))
+                    .where((p) => p.esBarra)
                     .toList();
 
                 try {
-                  // ✅ GUARDAR EN FIRESTORE (colección 'ordenesCocina')
+                  // Guardar en Firestore
                   if (productosCocina.isNotEmpty) {
                     await _guardarOrdenCocina(
                       id: '${numPedido}-COCINA',
@@ -2759,7 +2762,7 @@ class _OrderPageState extends State<OrderPage> {
                     );
                   }
 
-                  // GENERACIÓN E IMPRESIÓN DE TICKETS
+                  // ✅ IMPRESIÓN CON CLASIFICACIÓN DE IMPRESORAS
                   if (productosCocina.isNotEmpty) {
                     final String comandaCocina = _generarComandaTicket(
                       productosAImprimir: productosCocina,
@@ -2769,7 +2772,13 @@ class _OrderPageState extends State<OrderPage> {
                       numPedido: numPedido,
                       mesaState: mesaState,
                     );
-                    _imprimirComanda(comandaCocina);
+
+                    // 🖨️ IMPRIMIR EN IMPRESORA A (COCINA)
+                    await _printerManager.imprimirComanda(
+                      contenido: comandaCocina,
+                      tipo: TipoImpresora.cocina,
+                    );
+                    print('✅ Comanda de cocina enviada a Impresora A');
                   }
 
                   if (productosBarra.isNotEmpty) {
@@ -2781,10 +2790,16 @@ class _OrderPageState extends State<OrderPage> {
                       numPedido: numPedido,
                       mesaState: mesaState,
                     );
-                    _imprimirComanda(comandaBarra);
+
+                    // 🖨️ IMPRIMIR EN IMPRESORA B (BARRA)
+                    await _printerManager.imprimirComanda(
+                      contenido: comandaBarra,
+                      tipo: TipoImpresora.barra,
+                    );
+                    print('✅ Comanda de barra enviada a Impresora B');
                   }
 
-                  // ACTUALIZAR ESTADO LOCAL
+                  // Actualizar estado local
                   setState(() {
                     final alimentosEnviados = productosNoEnviados.map((item) {
                       return {
@@ -2811,11 +2826,19 @@ class _OrderPageState extends State<OrderPage> {
 
                   // Mostrar mensaje de éxito
                   if (mounted) {
+                    String mensaje = "✅ Comanda $numPedido enviada a ";
+                    if (productosCocina.isNotEmpty &&
+                        productosBarra.isNotEmpty) {
+                      mensaje += "Cocina y Barra";
+                    } else if (productosCocina.isNotEmpty) {
+                      mensaje += "Cocina";
+                    } else {
+                      mensaje += "Barra";
+                    }
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(
-                          "✓ Comanda $numPedido enviada a Cocina/Barra",
-                        ),
+                        content: Text(mensaje),
                         backgroundColor: Colors.green,
                         duration: const Duration(seconds: 2),
                       ),
@@ -3031,17 +3054,6 @@ class _OrderPageState extends State<OrderPage> {
     buffer.writeln('********************************');
 
     return buffer.toString();
-  }
-
-  // 💡 Placeholder para la función de impresión real
-  // En una aplicación real, usarías un paquete como 'esc_pos_utils' o 'blue_thermal_printer'.
-  void _imprimirComanda(String comanda) {
-    // Aquí iría la lógica para enviar la cadena 'comanda' a la impresora POS (red o bluetooth)
-
-    // Por ahora, solo la mostramos en consola para verificar el formato
-    print("--- INICIO IMPRESIÓN COMANDA ---");
-    print(comanda);
-    print("--- FIN IMPRESIÓN COMANDA ---");
   }
 
   void _procesarCuenta() {
@@ -3873,40 +3885,129 @@ class _OrderPageState extends State<OrderPage> {
       // 8. Generar PDF
       final pdfBytes = await generateTicketPdf(cuentaCerrada);
 
-      // ════════════════════════════════════════════════════════════════
-      // 🖨️ NUEVO: IMPRIMIR EN IMPRESORA TÉRMICA BLUETOOTH
-      // ════════════════════════════════════════════════════════════════
+      // ══════════════════════════════════════════════════════════
+      // 🖨️ IMPRESION EN TERMICA CON LOGO
+      // ══════════════════════════════════════════════════════════
       try {
-        // Generar el ticket en formato texto
-        final String ticketTexto = _generarTicketTexto(
-          cuentaCerrada,
-          descuentoInfo,
-        );
+        print('\n🖨️ Iniciando impresion termica con logo...');
 
-        // Imprimir el texto
-        await _printer.printText(ticketTexto);
+        await _imprimirTicketCompleto(cuentaCerrada, descuentoInfo);
 
-        // Cortar el papel
-        await _printer.cutPaper();
-
-        // Hacer beep de confirmación
-        await _printer.beep();
-
-        print('✅ Ticket impreso en impresora térmica');
+        print('✅ Ticket impreso exitosamente con logo');
       } catch (e) {
-        print('⚠️ Error al imprimir en impresora térmica: $e');
-        // No interrumpir el flujo si falla la impresión
+        print('❌ Error en impresion termica: $e');
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('⚠️ Advertencia: Error al imprimir ticket: $e'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
+          showDialog(
+            context: context,
+            barrierDismissible: true,
+            builder: (context) => AlertDialog(
+              title: Row(
+                children: const [
+                  Icon(Icons.print_disabled, color: Colors.orange, size: 28),
+                  SizedBox(width: 12),
+                  Text('Error de Impresion'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No se pudo imprimir el ticket',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Error: ${e.toString()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'La cuenta se cerro correctamente',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.picture_as_pdf,
+                              color: Colors.green,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Podras ver e imprimir el PDF',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'ENTENDIDO',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
           );
         }
       }
-      // ════════════════════════════════════════════════════════════════
+      // ══════════════════════════════════════════════════════════
 
       // 9. Mostrar diálogo con vista previa PDF
       await _mostrarDialogoTicket(pdfBytes, cuentaCerrada);
@@ -3939,84 +4040,163 @@ class _OrderPageState extends State<OrderPage> {
     }
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // 🆕 MÉTODO NUEVO: Generar ticket en formato texto para impresora térmica
-  // ════════════════════════════════════════════════════════════════
+  Future<void> _imprimirTicketCompleto(
+    CuentaCerrada cuenta,
+    Map<String, dynamic>? descuentoInfo,
+  ) async {
+    try {
+      print('\n🖨️ Preparando ticket de cuenta para impresión en BARRA...');
+
+      final String ticketTexto = _generarTicketTexto(cuenta, descuentoInfo);
+
+      // ✅ IMPRIMIR TICKET DE CUENTA EN IMPRESORA B (BARRA)
+      await _printerManager.imprimirTicketCuenta(contenido: ticketTexto);
+
+      print('✅ Ticket de cuenta impreso exitosamente en Impresora B');
+    } catch (e) {
+      print('❌ Error crítico imprimiendo ticket: $e');
+      rethrow;
+    }
+  }
+
   String _generarTicketTexto(
     CuentaCerrada cuenta,
     Map<String, dynamic>? descuentoInfo,
   ) {
     final buffer = StringBuffer();
+    // Corregido el símbolo de moneda a '$'
+    final formatCurrency = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
 
-    // Ancho de 32 caracteres para impresora de 58mm
+    // ========================================
+    // ENCABEZADO
+    // ========================================
     buffer.writeln('================================');
-    buffer.writeln('      PARRILLA VILLA');
+    buffer.writeln(centrarTexto('PARRILLA VILLA'));
     buffer.writeln('================================');
-    buffer.writeln('');
 
-    // Información de la mesa
-    buffer.writeln('TICKET DE VENTA');
-    buffer.writeln('--------------------------------');
-    buffer.writeln('Mesa: ${cuenta.numeroMesa}');
-    buffer.writeln('Mesero: ${cuenta.mesero}');
-    buffer.writeln('Comensales: ${cuenta.comensales}');
-    if (cuenta.folio != null) {
-      buffer.writeln('Folio: ${cuenta.folio}');
-    }
+    // Direccion
+    buffer.writeln(centrarTexto('Emiliano Zapata 57, Centro'));
+    buffer.writeln(centrarTexto('40000 Iguala de la'));
+    buffer.writeln(centrarTexto('Independencia, Gro., Mexico'));
+    buffer.writeln(centrarTexto('RFC: FOME940127132'));
+    buffer.writeln(centrarTexto('Cel: 733 117 4352'));
+    buffer.writeln('================================');
+
+    // INFORMACION DE LA CUENTA
+    final folioCorto = cuenta.id.substring(0, 8).toUpperCase();
+    buffer.writeln('FOLIO: $folioCorto  MESA: ${cuenta.numeroMesa}');
+    buffer.writeln('MESERO: ${sinAcentos(cuenta.mesero)}');
+    buffer.writeln('COMENSALES: ${cuenta.comensales}');
     buffer.writeln(
-      'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(cuenta.fechaCierre)}',
+      'FECHA: ${DateFormat('dd/MM/yyyy HH:mm').format(cuenta.fechaCierre)}',
     );
+    buffer.writeln('================================');
+
+    // PRODUCTOS
+    buffer.writeln('Cant. Producto     Precio  Total');
     buffer.writeln('--------------------------------');
-    buffer.writeln('');
 
-    // Productos
-    buffer.writeln('PRODUCTOS:');
-    buffer.writeln('--------------------------------');
+    for (var item in cuenta.productos) {
+      final cantidad = item['cantidad'] as int;
+      final nombre = sinAcentos(item['nombre'] as String);
+      final precioUnitario = (item['precio'] as num).toDouble();
+      final totalItem = precioUnitario * cantidad;
 
-    for (var producto in cuenta.productos) {
-      final nombre = producto['nombre'] as String;
-      final cantidad = producto['cantidad'] as int;
-      final precio = producto['precio'] as double;
-      final total = producto['total'] as double;
+      final cantStr = cantidad.toString().padRight(5);
+      final precioStr = formatCurrency.format(precioUnitario);
+      final totalStr = formatCurrency.format(totalItem);
 
-      // Línea del producto: "2x Producto     $100.00"
-      buffer.writeln('${cantidad}x $nombre');
-      buffer.writeln(
-        '    \$${precio.toStringAsFixed(2)} x $cantidad = \$${total.toStringAsFixed(2)}',
-      );
+      final nombreCorto = nombre.length > 12
+          ? '${nombre.substring(0, 11)}.'
+          : nombre;
 
-      // Nota si existe
-      final nota = producto['nota'] as String?;
+      buffer.writeln('$cantStr$nombreCorto');
+      buffer.writeln('      $precioStr x $cantidad = $totalStr');
+
+      final nota = item['nota'] as String?;
       if (nota != null && nota.isNotEmpty) {
-        buffer.writeln('    Nota: $nota');
+        final notaSinAcentos = sinAcentos(nota);
+        if (notaSinAcentos.length > 30) {
+          buffer.writeln('  Nota: ${notaSinAcentos.substring(0, 30)}');
+          buffer.writeln('        ${notaSinAcentos.substring(30)}');
+        } else {
+          buffer.writeln('  Nota: $notaSinAcentos');
+        }
       }
     }
 
     buffer.writeln('--------------------------------');
-    buffer.writeln('');
 
-    // Totales
-    if (descuentoInfo != null) {
-      buffer.writeln(
-        'Subtotal:    \$${descuentoInfo['total_original'].toStringAsFixed(2)}',
+    // SECCION DE DESCUENTO
+    if (descuentoInfo != null &&
+        descuentoInfo['monto_descuento'] != null &&
+        (descuentoInfo['monto_descuento'] as num) > 0) {
+      buffer.writeln('********************************');
+      buffer.writeln('       DESCUENTO APLICADO');
+      buffer.writeln('********************************');
+
+      final subtotal = (descuentoInfo['total_original'] as num).toDouble();
+      final descuento = (descuentoInfo['monto_descuento'] as num).toDouble();
+      final categoria = sinAcentos(
+        descuentoInfo['categoria_descuento'] ?? 'Aplicado',
       );
-      buffer.writeln(
-        'Descuento:  -\$${descuentoInfo['monto_descuento'].toStringAsFixed(2)}',
-      );
-      buffer.writeln('  (${descuentoInfo['razon']})');
+
+      buffer.writeln('Subtotal:    ${formatCurrency.format(subtotal)}');
+      buffer.writeln('Descuento ($categoria):');
+      buffer.writeln('            -${formatCurrency.format(descuento)}');
+
+      if (descuentoInfo['razon'] != null &&
+          (descuentoInfo['razon'] as String).isNotEmpty) {
+        final razon = sinAcentos(descuentoInfo['razon'] as String);
+        buffer.writeln('Motivo: $razon');
+      }
       buffer.writeln('--------------------------------');
     }
 
-    buffer.writeln('');
-    buffer.writeln('TOTAL:       \$${cuenta.totalCuenta.toStringAsFixed(2)}');
-    buffer.writeln('');
+    // TOTAL FINAL
+    buffer.writeln('TOTAL: ${formatCurrency.format(cuenta.totalCuenta)}');
     buffer.writeln('================================');
-    buffer.writeln('   ¡Gracias por su visita!');
-    buffer.writeln('      Vuelva pronto');
+    buffer.writeln('   !GRACIAS POR SU VISITA!');
     buffer.writeln('================================');
-    buffer.writeln('');
+    buffer.writeln('     Horario de atencion');
+    buffer.writeln(' Miercoles a Lunes de 1:00 PM');
+    buffer.writeln('         a 10:00 PM');
+    buffer.writeln('================================');
 
     return buffer.toString();
+  }
+
+  String sinAcentos(String texto) {
+    const acentos = {
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'Á': 'A',
+      'É': 'E',
+      'Í': 'I',
+      'Ó': 'O',
+      'Ú': 'U',
+      'ñ': 'n',
+      'Ñ': 'N',
+      'ü': 'u',
+      'Ü': 'U',
+      '¿': '',
+      '¡': '',
+      '°': '',
+    };
+    String resultado = texto;
+    acentos.forEach((key, value) {
+      resultado = resultado.replaceAll(key, value);
+    });
+    return resultado;
+  }
+
+  String centrarTexto(String texto, {int ancho = 32}) {
+    if (texto.length >= ancho) return texto;
+    int espaciosIzq = (ancho - texto.length) ~/ 2;
+    return ' ' * espaciosIzq + texto;
   }
 
   // Agregar este método en la clase _OrderPageState

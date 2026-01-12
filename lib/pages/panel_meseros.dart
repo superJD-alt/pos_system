@@ -8,6 +8,8 @@ import 'package:pos_system/pages/custom_table.dart';
 import 'package:pos_system/pages/resumen_turno_page.dart';
 import 'package:pos_system/pages/apartadoBotellaPage.dart';
 import 'package:pos_system/pages/printer_settings.dart';
+import 'package:pos_system/pages/dual_printer_settings.dart';
+import 'package:pos_system/models/printer_manager.dart';
 
 class PanelMeseros extends StatefulWidget {
   const PanelMeseros({super.key});
@@ -19,10 +21,25 @@ class PanelMeseros extends StatefulWidget {
 class _PanelMeserosState extends State<PanelMeseros> {
   String nombreMesero = 'Cargando...';
 
+  final PrinterManager _printerManager = PrinterManager();
+  bool _impresorasConfiguradas = false;
+
   @override
   void initState() {
     super.initState();
     obtenerNombreMesero();
+    _verificarImpresoras();
+  }
+
+  Future<void> _verificarImpresoras() async {
+    await _printerManager.cargarConfiguracion();
+    if (mounted) {
+      setState(() {
+        _impresorasConfiguradas =
+            _printerManager.estaConectada(TipoImpresora.cocina) &&
+            _printerManager.estaConectada(TipoImpresora.barra);
+      });
+    }
   }
 
   Future<void> obtenerNombreMesero() async {
@@ -102,21 +119,108 @@ class _PanelMeserosState extends State<PanelMeseros> {
         backgroundColor: Colors.indigoAccent,
         foregroundColor: Colors.white,
         actions: [
-          // ✅ NUEVO: Botón de configuración de impresora
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Configurar Impresora',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PrinterSettingsPage(),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.print, size: 28),
+                tooltip: _impresorasConfiguradas
+                    ? 'Impresoras configuradas'
+                    : 'Configurar impresoras',
+                onPressed: () async {
+                  // Navegar a la configuración
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DualPrinterSettingsPage(),
+                    ),
+                  );
+                  // Verificar estado al regresar
+                  _verificarImpresoras();
+                },
+              ),
+              // Indicador de estado (punto verde/rojo)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _impresorasConfiguradas ? Colors.green : Colors.red,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
                 ),
-              );
-            },
+              ),
+            ],
           ),
+
+          // ✅ OPCIONAL: Agregar botón de info
+          if (!_impresorasConfiguradas)
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'Información importante',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                        SizedBox(width: 12),
+                        Text('Impresoras no configuradas'),
+                      ],
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '⚠️ Necesitas configurar ambas impresoras antes de usar el sistema:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 12),
+                        Text('• Impresora A: Comandas de Cocina'),
+                        Text('• Impresora B: Comandas de Barra + Cuentas'),
+                        SizedBox(height: 16),
+                        Text(
+                          'Toca el ícono de impresora para configurarlas.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('ENTENDIDO'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const DualPrinterSettingsPage(),
+                            ),
+                          ).then((_) => _verificarImpresoras());
+                        },
+                        icon: const Icon(Icons.settings),
+                        label: const Text('CONFIGURAR'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
+
       body: LayoutBuilder(
         builder: (context, constraints) {
           // ✅ Determinar si es pantalla pequeña, mediana o grande
@@ -141,6 +245,12 @@ class _PanelMeserosState extends State<PanelMeseros> {
                         children: [
                           // 🔹 Saludo al mesero
                           _buildGreeting(isSmallScreen),
+
+                          // ✅ OPCIONAL: Mensaje de advertencia si no hay impresoras
+                          if (!_impresorasConfiguradas) ...[
+                            const SizedBox(height: 20),
+                            _buildPrinterWarning(isSmallScreen),
+                          ],
 
                           SizedBox(height: isSmallScreen ? 30 : 40),
 
@@ -179,6 +289,75 @@ class _PanelMeserosState extends State<PanelMeseros> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  // ✅ NUEVO MÉTODO: Banner de advertencia de impresoras
+  Widget _buildPrinterWarning(bool isSmallScreen) {
+    return Container(
+      padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange, width: 2),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.orange,
+            size: isSmallScreen ? 32 : 40,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '⚠️ Impresoras no configuradas',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Configura las impresoras de Cocina y Barra para enviar comandas',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 11 : 13,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DualPrinterSettingsPage(),
+                ),
+              );
+              _verificarImpresoras();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 12 : 16,
+                vertical: isSmallScreen ? 8 : 12,
+              ),
+            ),
+            child: Text(
+              'CONFIGURAR',
+              style: TextStyle(fontSize: isSmallScreen ? 11 : 13),
+            ),
+          ),
+        ],
       ),
     );
   }

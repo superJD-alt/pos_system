@@ -150,7 +150,7 @@ class _LoginPosState extends State<LoginPos> {
     Widget imageWidget = ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Image.asset(
-        'assets/images/icon_pos.jpg',
+        'assets/images/icon_pos.png',
         width: isWide ? size.width * 0.4 : size.width * 0.7,
         height: isWide ? size.width * 0.4 : size.width * 0.7,
         fit: BoxFit.cover,
