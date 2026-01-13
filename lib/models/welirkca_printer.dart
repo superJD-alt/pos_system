@@ -1,4 +1,6 @@
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 
 class WelirkcaPrinterService {
   static const MethodChannel _channel = MethodChannel(
@@ -25,12 +27,46 @@ class WelirkcaPrinterService {
     }
   }
 
+  // ==================== PERMISOS ====================
+
+  /// Verificar y solicitar permisos de Bluetooth para Android
+  Future<bool> verificarYSolicitarPermisos() async {
+    if (!Platform.isAndroid) return true;
+
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothConnect,
+      Permission.bluetoothScan,
+      Permission.locationWhenInUse,
+    ].request();
+
+    bool todosOtorgados = statuses.values.every((status) => status.isGranted);
+
+    if (!todosOtorgados) {
+      bool algunoDenegadoPermanentemente = statuses.values.any(
+        (status) => status.isPermanentlyDenied,
+      );
+
+      if (algunoDenegadoPermanentemente) {
+        await openAppSettings();
+      }
+    }
+
+    return todosOtorgados;
+  }
+
   // ==================== CONEXIÓN ====================
 
   /// Buscar impresoras Bluetooth cercanas
   /// Retorna lista de impresoras: [{"id": "...", "name": "..."}]
   Future<List<Map<String, String>>> scanPrinters() async {
     try {
+      // ✅ Verificar permisos ANTES de escanear
+      bool permisosOk = await verificarYSolicitarPermisos();
+      if (!permisosOk) {
+        print('❌ Permisos Bluetooth no otorgados');
+        return [];
+      }
+
       final result = await _channel.invokeMethod('scanPrinters');
       return List<Map<String, String>>.from(
         result.map((item) => Map<String, String>.from(item)),
@@ -53,6 +89,13 @@ class WelirkcaPrinterService {
   /// Conectar a impresora por Bluetooth
   Future<bool> connectBluetooth(String deviceId) async {
     try {
+      // ✅ Verificar permisos ANTES de conectar
+      bool permisosOk = await verificarYSolicitarPermisos();
+      if (!permisosOk) {
+        print('❌ Permisos Bluetooth no otorgados');
+        return false;
+      }
+
       final result = await _channel.invokeMethod('connectBluetooth', {
         'deviceId': deviceId,
       });
@@ -85,10 +128,8 @@ class WelirkcaPrinterService {
     }
   }
 
-  // ==================== CONFIGURACIÓN ====================
+  // ==================== RESTO DE TUS MÉTODOS (sin cambios) ====================
 
-  /// Establecer ancho de impresión
-  /// 384 para 58mm, 576 para 80mm
   Future<void> setPrintWidth(int width) async {
     try {
       await _channel.invokeMethod('setPrintWidth', {'width': width});
@@ -97,8 +138,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Establecer tamaño de fuente
-  /// 0 = 1x, 1 = 2x, 2 = 3x, 3 = 4x
   Future<void> setFontSize(int multiple) async {
     try {
       await _channel.invokeMethod('setFontSize', {'multiple': multiple});
@@ -107,9 +146,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  // ==================== IMPRESIÓN ====================
-
-  /// Imprimir texto simple
   Future<void> printText(String text) async {
     try {
       await _channel.invokeMethod('printText', {'text': text});
@@ -118,7 +154,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Imprimir texto como imagen (mejor calidad)
   Future<void> printTextImage(String text) async {
     try {
       await _channel.invokeMethod('printTextImage', {'text': text});
@@ -127,8 +162,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Imprimir código de barras
-  /// types: 0=UPC-A, 1=UPC-E, 2=JAN13, 3=JAN8, 4=CODE39, 5=ITF, 6=CODABAR, 7=CODE93, 8=CODE128
   Future<void> printBarcode(String code, int type) async {
     try {
       await _channel.invokeMethod('printBarcode', {'code': code, 'type': type});
@@ -137,7 +170,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Imprimir código QR
   Future<void> printQRCode(String data) async {
     try {
       await _channel.invokeMethod('printQRCode', {'data': data});
@@ -146,7 +178,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Imprimir imagen desde bytes
   Future<void> printImage(Uint8List imageBytes) async {
     try {
       await _channel.invokeMethod('printImage', {'imageBytes': imageBytes});
@@ -155,7 +186,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Imprimir ticket de prueba
   Future<void> printTestPaper() async {
     try {
       await _channel.invokeMethod('printTestPaper');
@@ -164,9 +194,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  // ==================== OTROS ====================
-
-  /// Cortar papel
   Future<void> cutPaper() async {
     try {
       await _channel.invokeMethod('cutPaper');
@@ -175,7 +202,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Hacer sonar beep
   Future<void> beep() async {
     try {
       await _channel.invokeMethod('beep');
@@ -184,7 +210,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Abrir caja registradora
   Future<void> openCashDrawer() async {
     try {
       await _channel.invokeMethod('openCashDrawer');
@@ -193,7 +218,6 @@ class WelirkcaPrinterService {
     }
   }
 
-  /// Auto-test de impresora
   Future<void> selfTest() async {
     try {
       await _channel.invokeMethod('selfTest');

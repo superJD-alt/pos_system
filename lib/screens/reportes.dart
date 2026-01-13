@@ -151,7 +151,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
         totalProductosVendidos += (item['cantidad'] as num?)?.toInt() ?? 0;
       }
 
-      tickets.add({...data, 'id': doc.id});
+      final fechaCierreTimestamp = data['fechaCierre'] as Timestamp?;
+      final fechaCierreDateTime = fechaCierreTimestamp?.toDate();
+
+      tickets.add({
+        ...data,
+        'id': doc.id,
+        'fechaCierre': fechaCierreDateTime, // 👈 Importante
+      });
     }
 
     // --- SECCIÓN DE DESCUENTOS (CORREGIDA) ---
@@ -1473,8 +1480,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget _buildTicketsList(ReportData data) {
     final tickets = data['tickets'] as List<Map<String, dynamic>>? ?? [];
     tickets.sort((a, b) {
-      final fechaA = a['fechaCierre'] as DateTime?;
-      final fechaB = b['fechaCierre'] as DateTime?;
+      final fechaA = _parseStringToDateTime(a['fechaCierre']);
+      final fechaB = _parseStringToDateTime(b['fechaCierre']);
       if (fechaA == null || fechaB == null) return 0;
       return fechaB.compareTo(fechaA);
     });
@@ -2197,8 +2204,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 final cierre = cierres[index];
                 final diferencia =
                     (cierre['diferencia'] as num?)?.toDouble() ?? 0.0;
-                // ✅ CORRECCIÓN APLICADA: Ya es DateTime, no Timestamp
-                final fechaCierre = cierre['fechaCierre'] as DateTime?;
+
+                // ✅ CORRECCIÓN: Usar _parseStringToDateTime para manejar cualquier tipo
+                final fechaCierre = _parseStringToDateTime(
+                  cierre['fechaCierre'],
+                );
+
                 final fondoInicial =
                     (cierre['fondo_inicial'] as num?)?.toDouble() ?? 0.0;
                 final efectivoContado =
@@ -2236,9 +2247,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                             ),
                           ),
                           Padding(
-                            padding: const EdgeInsets.only(
-                              top: 0,
-                            ), // Eliminar padding vertical extra
+                            padding: const EdgeInsets.only(top: 0),
                             child: Text(
                               fechaCierre != null
                                   ? DateFormat(
@@ -2246,8 +2255,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                     ).format(fechaCierre)
                                   : '',
                               style: const TextStyle(
-                                fontSize:
-                                    9, // 🎯 CORRECCIÓN 4: Bajar la fuente a 9 para ahorrar espacio.
+                                fontSize: 9,
                                 color: Colors.grey,
                               ),
                             ),

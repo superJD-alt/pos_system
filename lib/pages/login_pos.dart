@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// Importaciones de las vistas según el rol
 import 'package:pos_system/pages/panel_meseros.dart';
 import 'package:pos_system/screens/dashboard.dart';
 import 'package:pos_system/pages/mesa_state.dart';
