@@ -23,7 +23,7 @@ class _DashboardState extends State<Dashboard> {
   String _rolUsuario = 'cargando';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _nombreUsuarioLogeado = 'Cargando...';
-  String _correoUsuarioLogeado = 'cargando@pos.com';
+  String _correoUsuarioLogeado = 'cargando@pv.com';
   bool _isLoading = true;
 
   final List<String> _titles = [
@@ -54,24 +54,36 @@ class _DashboardState extends State<Dashboard> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final userDoc = await FirebaseFirestore.instance
+        // ✅ BUSCAR por campo 'uid'
+        QuerySnapshot query = await _firestore
             .collection('usuarios')
-            .doc(user.uid)
+            .where('uid', isEqualTo: user.uid)
+            .limit(1)
             .get();
+
         String nombreDB = '';
         String rolDB = 'unknown';
-        if (userDoc.exists) {
-          nombreDB = userDoc.data()?['nombre'] ?? user.email;
-          rolDB = userDoc.data()?['rol'] ?? 'unknown';
+
+        if (query.docs.isNotEmpty) {
+          final userDoc = query.docs.first;
+          final data = userDoc.data() as Map<String, dynamic>;
+          nombreDB = data['nombre'] ?? user.email ?? 'Usuario';
+          rolDB = data['rol'] ?? 'unknown';
+
+          debugPrint('✅ Datos cargados: $nombreDB - Rol: $rolDB');
+        } else {
+          debugPrint('⚠️ No se encontró usuario en Firestore');
+          nombreDB = user.displayName ?? user.email ?? 'Usuario';
         }
+
         setState(() {
           _nombreUsuarioLogeado = nombreDB;
-          _correoUsuarioLogeado = user.email ?? 'sin_correo@pos.com';
+          _correoUsuarioLogeado = user.email ?? 'sin_correo@pv.com';
           _rolUsuario = rolDB;
           _isLoading = false;
         });
       } catch (e) {
-        print("Error al cargar datos de Firestore: $e");
+        debugPrint("❌ Error al cargar datos de Firestore: $e");
         setState(() {
           _nombreUsuarioLogeado =
               user.displayName ?? user.email ?? 'Error Nombre';
@@ -105,25 +117,74 @@ class _DashboardState extends State<Dashboard> {
 
   Future<void> _cerrarSesion() async {
     try {
-      String? uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('usuarios').doc(uid).update(
-          {'sesionActiva': false},
-        );
-        debugPrint('✅ Sesión marcada como inactiva');
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        debugPrint('🔄 Cerrando sesión para: ${user.email}');
+
+        // ✅ BUSCAR el documento por campo 'uid' en lugar de por ID
+        try {
+          QuerySnapshot query = await _firestore
+              .collection('usuarios')
+              .where('uid', isEqualTo: user.uid)
+              .limit(1)
+              .get();
+
+          if (query.docs.isNotEmpty) {
+            // Actualizar el documento encontrado
+            await query.docs.first.reference.update({
+              'sesionActiva': false,
+              'fechaCierreSesion': FieldValue.serverTimestamp(),
+            });
+            debugPrint('✅ Sesión marcada como inactiva en Firestore');
+          } else {
+            debugPrint(
+              '⚠️ No se encontró documento en Firestore para este usuario',
+            );
+          }
+        } catch (firestoreError) {
+          debugPrint('⚠️ Error actualizando Firestore: $firestoreError');
+          // Continuar con el logout aunque falle Firestore
+        }
       }
+
+      // Cerrar sesión en Authentication (SIEMPRE se ejecuta)
       await FirebaseAuth.instance.signOut();
+      debugPrint('✅ Sesión cerrada en Firebase Authentication');
+
       if (!mounted) return;
-      Navigator.pushReplacement(
+
+      // Navegar al login y limpiar todo el stack
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPos()),
+        (route) => false, // Elimina todas las rutas anteriores
       );
     } catch (e) {
-      debugPrint('Error al cerrar sesión: $e');
+      debugPrint('❌ Error al cerrar sesión: $e');
+
+      // Aunque haya error, intentar cerrar sesión en Auth
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (authError) {
+        debugPrint('❌ Error cerrando Authentication: $authError');
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cerrar sesión: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+
+        // Aún así, navegar al login
+        Navigator.pushAndRemoveUntil(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error al cerrar sesión: $e')));
+          MaterialPageRoute(builder: (context) => const LoginPos()),
+          (route) => false,
+        );
       }
     }
   }
@@ -767,19 +828,6 @@ class _DashboardState extends State<Dashboard> {
               fontWeight: FontWeight.bold,
               color: Color(0xFF1E293B),
             ),
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () {},
-              ),
-            ],
           ),
         ],
       ),

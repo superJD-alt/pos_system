@@ -77,7 +77,6 @@ class _PanelGeneralScreenState extends State<PanelGeneralScreen> {
           }
         }
 
-        // ✅ AQUÍ ESTÁ EL CAMBIO - Líneas 76-78
         return StreamBuilder<QuerySnapshot>(
           stream: _firestore
               .collection('usuarios')

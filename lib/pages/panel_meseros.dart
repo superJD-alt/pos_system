@@ -23,12 +23,20 @@ class _PanelMeserosState extends State<PanelMeseros> {
 
   final PrinterManager _printerManager = PrinterManager();
   bool _impresorasConfiguradas = false;
+  bool _esTabletCentral = false;
+  bool get esTabletCentral =>
+      _esTabletCentral; // Este es el "getter" para leerla desde fuera
+  bool _procesandoImpresion = false;
+
+  // Variable local para que el switch se mueva visualmente
+  bool _esCentral = false;
 
   @override
   void initState() {
     super.initState();
     obtenerNombreMesero();
     _verificarImpresoras();
+    _esCentral = _printerManager.esTabletCentral;
   }
 
   Future<void> _verificarImpresoras() async {
@@ -243,6 +251,57 @@ class _PanelMeserosState extends State<PanelMeseros> {
                       ),
                       child: Column(
                         children: [
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            // Cambia de color si está activo para dar feedback visual claro
+                            color: _esCentral
+                                ? Colors.blue.shade50
+                                : Colors.white,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: SwitchListTile(
+                                title: const Text(
+                                  "Modo: Central de Impresión",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: Text(
+                                  _esCentral
+                                      ? "Esta tablet está imprimiendo los pedidos de todos."
+                                      : "Activa esto solo en la tablet conectada a la impresora.",
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                secondary: Icon(
+                                  Icons.print,
+                                  color: _esCentral ? Colors.blue : Colors.grey,
+                                ),
+                                value: _esCentral,
+                                onChanged: (bool value) {
+                                  setState(() {
+                                    _esCentral = value;
+                                    // Llamamos al manager para que empiece o deje de escuchar Firebase
+                                    _printerManager.setComoTabletCentral(value);
+                                  });
+
+                                  // Mensaje de confirmación
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        value
+                                            ? "✅ Servidor de impresión activo"
+                                            : "ℹ️ Servidor desactivado",
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+
+                          const Divider(),
                           // 🔹 Saludo al mesero
                           _buildGreeting(isSmallScreen),
 
@@ -698,43 +757,60 @@ class _PanelMeserosState extends State<PanelMeseros> {
     );
   }
 
-  // Widget para el botón de resumen del turno
-  Widget _buildLargeActionButton(
-    BuildContext context, {
-    required String title,
-    required Color color,
-    required Widget page,
-    required bool isSmallScreen,
-  }) {
-    return SizedBox(
-      width: isSmallScreen ? double.infinity : null,
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => page),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(
-            horizontal: isSmallScreen ? 40 : 80,
-            vertical: isSmallScreen ? 16 : 24,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          elevation: 6,
+  void setComoTabletCentral(bool valor) {
+    _esTabletCentral = valor; // Guardamos el cambio
+    if (_esTabletCentral) {
+      print("📡 TEST: Intentando iniciar escucha en Firebase...");
+      _iniciarEscuchaDeImpresion(); // <--- Arranca el motor
+    } else {
+      print("💤 Modo Central Desactivado.");
+      // Aquí podrías agregar lógica para detener la escucha si fuera necesario
+    }
+  }
+
+  void _iniciarEscuchaDeImpresion() {
+    FirebaseFirestore.instance
+        .collection('tickets_pendientes')
+        .where('impreso', isEqualTo: false)
+        .snapshots()
+        .listen((snapshot) {
+          // Aquí va la lógica de impresión que ya tienes
+          print("🔔 Cambio detectado en Firebase!");
+        });
+  }
+}
+
+// Widget para el botón de resumen del turno
+Widget _buildLargeActionButton(
+  BuildContext context, {
+  required String title,
+  required Color color,
+  required Widget page,
+  required bool isSmallScreen,
+}) {
+  return SizedBox(
+    width: isSmallScreen ? double.infinity : null,
+    child: ElevatedButton(
+      onPressed: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSmallScreen ? 40 : 80,
+          vertical: isSmallScreen ? 16 : 24,
         ),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: isSmallScreen ? 18 : 24,
-            fontWeight: FontWeight.bold,
-          ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        elevation: 6,
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: isSmallScreen ? 18 : 24,
+          fontWeight: FontWeight.bold,
         ),
       ),
-    );
-  }
+    ),
+  );
 }

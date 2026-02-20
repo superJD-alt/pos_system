@@ -38,7 +38,7 @@ class _LoginPosState extends State<LoginPos> {
     }
 
     // Construcción del email para Firebase Auth
-    final email = '$user@pos.com';
+    final email = '$user@pv.com';
 
     try {
       setState(() {
@@ -46,56 +46,104 @@ class _LoginPosState extends State<LoginPos> {
         loading = true;
       });
 
-      // 1. Autenticar usuario
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: pass,
-      );
+      // 1. VERIFICAR SI EL USUARIO EXISTE EN FIRESTORE
+      QuerySnapshot usuariosQuery = await _firestore
+          .collection('usuarios')
+          .where('email', isEqualTo: email)
+          .get();
 
-      // 2. Obtener el documento del usuario para nombre y rol
-      String nombreMesero = "Usuario POS";
-      String userRole = 'unknown';
-
-      if (userCredential.user != null) {
-        try {
-          DocumentSnapshot userDoc = await _firestore
-              .collection('usuarios')
-              .doc(userCredential.user!.uid)
-              .get();
-
-          if (userDoc.exists) {
-            // Obtener nombre y rol
-            nombreMesero = userDoc.get('nombre') ?? "Usuario #$user";
-            userRole =
-                (userDoc.get('rol') as String?)?.toLowerCase() ?? 'unknown';
-
-            // ✅ ACTUALIZAR sesionActiva a true
-            await _firestore
-                .collection('usuarios')
-                .doc(userCredential.user!.uid)
-                .update({'sesionActiva': true});
-
-            debugPrint('✅ Usuario autenticado. Rol: $userRole');
-            debugPrint('✅ Sesión marcada como activa');
-          } else {
-            debugPrint(
-              'Error: Documento de usuario no encontrado en Firestore.',
-            );
-            userRole = 'unregistered';
-          }
-        } catch (e) {
-          debugPrint('Error al obtener datos del usuario (nombre/rol): $e');
-          userRole = 'error_fetching_role';
-        }
+      if (usuariosQuery.docs.isEmpty) {
+        setState(() => errorMessage = 'Usuario no encontrado en el sistema');
+        return;
       }
 
-      // 3. GUARDAR el nombre en MesaState
+      DocumentSnapshot usuarioDoc = usuariosQuery.docs.first;
+      Map<String, dynamic> usuarioData =
+          usuarioDoc.data() as Map<String, dynamic>;
+      String usuarioId = usuarioDoc.id;
+
+      // 2. VERIFICAR ESTADO DEL USUARIO
+      if (usuarioData['estado'] != 'Activo') {
+        setState(
+          () => errorMessage = 'Usuario inactivo. Contacte al administrador.',
+        );
+        return;
+      }
+
+      // 3. VERIFICAR SI LA CUENTA YA ESTÁ CREADA EN AUTHENTICATION
+      UserCredential? userCredential;
+
+      if (usuarioData['cuentaCreada'] != true) {
+        // ✅ PRIMER LOGIN - CREAR CUENTA EN AUTHENTICATION
+        final passwordTemporal = usuarioData['passwordTemporal'];
+
+        if (pass != passwordTemporal) {
+          setState(() => errorMessage = 'Contraseña incorrecta');
+          return;
+        }
+
+        // Crear cuenta en Authentication
+        userCredential = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: pass,
+        );
+
+        // Actualizar nombre
+        await userCredential.user!.updateDisplayName(usuarioData['nombre']);
+
+        // ✅ ACTUALIZAR el documento EXISTENTE (no crear uno nuevo)
+        await _firestore
+            .collection('usuarios')
+            .doc(usuarioId) // 👈 Usar el ID original de Firestore
+            .update({
+              'cuentaCreada': true,
+              'emailVerificado': true,
+              'sesionActiva': true,
+              'uid': userCredential.user!.uid, // 👈 Guardar el UID como campo
+              'fechaPrimerLogin': FieldValue.serverTimestamp(),
+              'fechaActualizacion': FieldValue.serverTimestamp(),
+            });
+
+        debugPrint('✅ Cuenta activada para usuario: ${usuarioData['nombre']}');
+        debugPrint('✅ UID de Authentication: ${userCredential.user!.uid}');
+        debugPrint('✅ ID del documento Firestore: $usuarioId');
+
+        // Recargar datos actualizados
+        usuarioDoc = await _firestore
+            .collection('usuarios')
+            .doc(usuarioId)
+            .get();
+        usuarioData = usuarioDoc.data() as Map<String, dynamic>;
+      } else {
+        // ✅ LOGIN NORMAL - USUARIO YA EXISTE EN AUTHENTICATION
+        userCredential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: pass,
+        );
+
+        // Actualizar sesión activa en el documento existente
+        await _firestore.collection('usuarios').doc(usuarioId).update({
+          'sesionActiva': true,
+          'ultimoLogin': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('✅ Login exitoso para: ${usuarioData['nombre']}');
+      }
+
+      // 4. OBTENER NOMBRE Y ROL
+      String nombreMesero = usuarioData['nombre'] ?? "Usuario #$user";
+      String userRole =
+          (usuarioData['rol'] as String?)?.toLowerCase() ?? 'unknown';
+
+      // 5. GUARDAR el nombre en MesaState
       _mesaState.establecerMesero(nombreMesero);
       debugPrint('✅ Mesero/Usuario establecido: $nombreMesero');
+      debugPrint('✅ Rol del usuario: $userRole');
+      debugPrint('✅ Sesión marcada como activa');
 
       if (!mounted) return;
 
-      // 4. Lógica de navegación condicional por rol
+      // 6. LÓGICA DE NAVEGACIÓN CONDICIONAL POR ROL
       Widget destinationPage;
 
       switch (userRole) {
@@ -128,11 +176,17 @@ class _LoginPosState extends State<LoginPos> {
         msg = 'Usuario no encontrado';
       } else if (e.code == 'wrong-password') {
         msg = 'Contraseña incorrecta';
+      } else if (e.code == 'email-already-in-use') {
+        msg =
+            'Este usuario ya tiene una cuenta creada. Use su contraseña actual.';
       } else {
         msg = 'Error de autenticación: ${e.message}';
       }
       setState(() => errorMessage = msg);
-      debugPrint('Error de Auth: ${e.message}');
+      debugPrint('❌ Error de Auth: ${e.code} - ${e.message}');
+    } catch (e) {
+      setState(() => errorMessage = 'Error inesperado: $e');
+      debugPrint('❌ Error general: $e');
     } finally {
       if (mounted) {
         setState(() => loading = false);
@@ -279,7 +333,11 @@ class _LoginPosState extends State<LoginPos> {
                 constraints.maxWidth > 800) {
               return Row(
                 children: [
-                  Expanded(flex: 1, child: Center(child: imageWidget)),
+                  // Logo centrado vertical y horizontalmente en landscape
+                  Expanded(
+                    flex: 1,
+                    child: SizedBox.expand(child: Center(child: imageWidget)),
+                  ),
                   Expanded(
                     flex: 2,
                     child: Padding(
@@ -295,17 +353,28 @@ class _LoginPosState extends State<LoginPos> {
                 ],
               );
             } else {
-              return SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    children: [
-                      Center(child: imageWidget),
-                      const SizedBox(height: 20),
-                      formWidget,
-                    ],
+              // Logo centrado en portrait: ocupa su propio espacio centrado
+              return Column(
+                children: [
+                  // Mitad superior: solo el logo, centrado
+                  SizedBox(
+                    height: constraints.maxHeight * 0.40,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 15),
+                        child: imageWidget,
+                      ),
+                    ),
                   ),
-                ),
+                  // Mitad inferior: formulario con scroll
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      child: formWidget,
+                    ),
+                  ),
+                ],
               );
             }
           },

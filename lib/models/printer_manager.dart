@@ -1,14 +1,8 @@
-// ═══════════════════════════════════════════════════════════════
-// PROBLEMA IDENTIFICADO:
-// El SDK WelirkcaPrinterService usa un MethodChannel global, por lo que
-// solo mantiene UNA conexión activa a la vez.
-//
-// SOLUCIÓN:
-// Antes de cada impresión, conectar a la impresora específica.
-// ═══════════════════════════════════════════════════════════════
-
 import 'package:pos_system/models/welirkca_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:printing/printing.dart';
+import 'dart:typed_data';
 
 enum TipoImpresora {
   cocina, // Impresora A - Comandas de cocina
@@ -29,6 +23,13 @@ class PrinterManager {
   String? _barraName;
   String? _barraType; // 'bluetooth' o 'wifi'
   String? _barraAddress; // deviceId o IP
+
+  // Dentro de la clase PrinterManager
+  bool _esTabletCentral = false;
+  bool get esTabletCentral => _esTabletCentral;
+
+  // Variable para evitar que la tablet imprima dos veces lo mismo mientras procesa
+  bool _procesandoImpresion = false;
 
   // Singleton
   static final PrinterManager _instance = PrinterManager._internal();
@@ -135,6 +136,119 @@ class PrinterManager {
     }
   }
 
+  void setComoTabletCentral(bool valor) {
+    _esTabletCentral = valor;
+    if (_esTabletCentral) {
+      print("📡 Modo Central Activado: Escuchando pedidos...");
+      _iniciarEscuchaDeImpresion();
+    } else {
+      print("💤 Modo Central Desactivado.");
+    }
+  }
+
+  void _iniciarEscuchaDeImpresion() {
+    print("📡 [CENTRAL] Iniciando escucha de pedidos en Firebase...");
+
+    FirebaseFirestore.instance
+        .collection('tickets_pendientes')
+        .where('impreso', isEqualTo: false)
+        .snapshots()
+        .listen((snapshot) async {
+          if (!_esTabletCentral) return;
+
+          for (var change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added) {
+              final data = change.doc.data();
+              if (data == null || _procesandoImpresion) continue;
+
+              try {
+                _procesandoImpresion = true;
+                final int mesa = data['numeroMesa'] ?? 0;
+                final String mesero = data['mesero'] ?? 'Sin nombre';
+                final List productosRaw = data['productos'] ?? [];
+
+                print("🆕 [CENTRAL] Pedido detectado Mesa: $mesa");
+
+                // 1. Marcar como impreso en Firebase primero
+                await change.doc.reference.update({'impreso': true});
+
+                // 2. Separar productos para Cocina y Barra
+                List<Map<String, dynamic>> productosCocina = [];
+                List<Map<String, dynamic>> productosBarra = [];
+
+                for (var item in productosRaw) {
+                  final p = Map<String, dynamic>.from(item);
+                  if (p.esBarra) {
+                    productosBarra.add(p);
+                  } else {
+                    productosCocina.add(p);
+                  }
+                }
+
+                // 3. Imprimir ticket de COCINA si hay productos
+                if (productosCocina.isNotEmpty) {
+                  String contenidoCocina = _formatearTicket(
+                    "COMANDA COCINA",
+                    mesa,
+                    mesero,
+                    productosCocina,
+                  );
+                  await imprimirComanda(
+                    contenido: contenidoCocina,
+                    tipo: TipoImpresora.cocina,
+                  );
+                }
+
+                // 4. Imprimir ticket de BARRA si hay productos
+                if (productosBarra.isNotEmpty) {
+                  String contenidoBarra = _formatearTicket(
+                    "COMANDA BARRA",
+                    mesa,
+                    mesero,
+                    productosBarra,
+                  );
+                  await imprimirComanda(
+                    contenido: contenidoBarra,
+                    tipo: TipoImpresora.barra,
+                  );
+                }
+
+                print("✅ [CENTRAL] Impresión física completada.");
+              } catch (e) {
+                print("❌ [CENTRAL] Error al imprimir: $e");
+              } finally {
+                _procesandoImpresion = false;
+              }
+            }
+          }
+        });
+  }
+
+  // Helper para darle formato al texto del ticket
+  String _formatearTicket(
+    String titulo,
+    int mesa,
+    String mesero,
+    List<Map<String, dynamic>> productos,
+  ) {
+    String buffer = "================================\n";
+    buffer += "       $titulo\n";
+    buffer += "================================\n";
+    buffer += "MESA: $mesa\n";
+    buffer += "MESERO: $mesero\n";
+    buffer += "FECHA: ${DateTime.now().toString().substring(0, 16)}\n";
+    buffer += "--------------------------------\n";
+
+    for (var p in productos) {
+      buffer += "${p['cantidad']}x ${p['nombre']}\n";
+      if (p['nota'] != null && p['nota'].toString().isNotEmpty) {
+        buffer += "   NOTA: ${p['nota']}\n";
+      }
+    }
+    buffer += "--------------------------------\n";
+    return buffer;
+  }
+
   // ════════════════════════════════════════════════════════
   // CONEXIÓN (para guardar configuración)
   // ════════════════════════════════════════════════════════
@@ -204,7 +318,6 @@ class PrinterManager {
   // RECONEXIÓN ANTES DE IMPRIMIR
   // ════════════════════════════════════════════════════════
 
-  /// ✅ Conecta a la impresora específica antes de imprimir
   Future<bool> _conectarAntes(TipoImpresora tipo) async {
     try {
       String? connectionType;
@@ -227,6 +340,17 @@ class PrinterManager {
         '🔄 Conectando a ${tipo.name.toUpperCase()} ($connectionType: $address)...',
       );
 
+      // ✅ MEJORA: Desconectar cualquier conexión previa primero
+      try {
+        await _printer.disconnect();
+        await Future.delayed(
+          const Duration(milliseconds: 500),
+        ); // Pausa para limpiar
+      } catch (e) {
+        print('⚠️ Error desconectando: $e');
+      }
+
+      // Intentar conectar
       bool success;
       if (connectionType == 'bluetooth') {
         success = await _printer.connectBluetooth(address);
@@ -236,8 +360,8 @@ class PrinterManager {
 
       if (success) {
         print('✅ Conectado a ${tipo.name.toUpperCase()}');
-        // Pequeña pausa para estabilizar la conexión
-        await Future.delayed(const Duration(milliseconds: 300));
+        // Pausa para estabilizar - AUMENTADA
+        await Future.delayed(const Duration(milliseconds: 800));
       } else {
         print('❌ No se pudo conectar a ${tipo.name.toUpperCase()}');
       }
@@ -249,6 +373,28 @@ class PrinterManager {
     }
   }
 
+  Future<bool> _conectarConReintentos(
+    TipoImpresora tipo, {
+    int maxIntentos = 3,
+  }) async {
+    for (int i = 0; i < maxIntentos; i++) {
+      print('🔄 Intento ${i + 1}/$maxIntentos para ${tipo.name}...');
+
+      final success = await _conectarAntes(tipo);
+
+      if (success) {
+        return true;
+      }
+
+      if (i < maxIntentos - 1) {
+        print('⏳ Esperando antes del siguiente intento...');
+        await Future.delayed(Duration(seconds: 2));
+      }
+    }
+
+    print('❌ Falló después de $maxIntentos intentos');
+    return false;
+  }
   // ════════════════════════════════════════════════════════
   // MÉTODOS DE IMPRESIÓN
   // ════════════════════════════════════════════════════════
@@ -262,21 +408,20 @@ class PrinterManager {
       print('║  🖨️  IMPRIMIENDO EN ${tipo.name.toUpperCase().padRight(18)}║');
       print('╚════════════════════════════════════════╝');
 
-      // ✅ PASO 1: Conectar a la impresora específica
-      final conectado = await _conectarAntes(tipo);
+      // ✅ USAR REINTENTOS
+      final conectado = await _conectarConReintentos(tipo, maxIntentos: 3);
       if (!conectado) {
-        throw Exception('No se pudo conectar a impresora de ${tipo.name}');
+        throw Exception(
+          'No se pudo conectar a impresora de ${tipo.name} después de 3 intentos',
+        );
       }
 
-      // ✅ PASO 2: Configurar impresora
+      // Resto del código igual...
       await _printer.setPrintWidth(384);
       await _printer.setFontSize(0);
-
-      // ✅ PASO 3: Imprimir contenido
       await _printer.printText(contenido);
       await _printer.printText('\n\n\n');
 
-      // ✅ PASO 4: Cortar papel
       try {
         await _printer.cutPaper();
         print('✅ Papel cortado');
@@ -284,7 +429,6 @@ class PrinterManager {
         print('⚠️ No se pudo cortar: $e');
       }
 
-      // ✅ PASO 5: Beep
       try {
         await _printer.beep();
         print('✅ Beep emitido');
@@ -344,6 +488,38 @@ class PrinterManager {
       print('❌ Error imprimiendo ticket: $e');
       rethrow;
     }
+  }
+
+  Future<bool> imprimirDirecto(
+    String contenido, // ✅ Recibe texto formateado
+    TipoImpresora tipo,
+  ) async {
+    // ✅ Verifica configuración
+    if (!estaConectada(tipo)) {
+      return false;
+    }
+
+    // ✅ Conecta con reintentos (igual que comandas)
+    final conectado = await _conectarConReintentos(tipo, maxIntentos: 3);
+    if (!conectado) {
+      return false;
+    }
+
+    // ✅ Imprime directamente (igual que comandas)
+    await _printer.setPrintWidth(384);
+    await _printer.setFontSize(0);
+    await _printer.printText(contenido);
+    await _printer.printText('\n\n\n');
+
+    // ✅ Corta papel y hace beep
+    try {
+      await _printer.cutPaper();
+      await _printer.beep();
+    } catch (e) {
+      print('⚠️ Error en corte/beep: $e');
+    }
+
+    return true;
   }
 
   Future<void> imprimirPrueba(TipoImpresora tipo) async {

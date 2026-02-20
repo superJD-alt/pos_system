@@ -1,92 +1,89 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MesaState extends ChangeNotifier {
   static final MesaState _instance = MesaState._internal();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   factory MesaState() {
     return _instance;
   }
 
-  Map<int, String> _foliosMesa = {}; // mesa -> folio
-
-  void guardarFolioMesa(int numeroMesa, String folio) {
-    _foliosMesa[numeroMesa] = folio;
-    notifyListeners();
+  MesaState._internal() {
+    //constructor
+    // ✅ FIX: Diferir TODA la inicialización hasta después del primer frame
+    Future.microtask(() async {
+      _iniciarEscuchaDeMesas();
+      await _cargarMesasDinamicasInicial();
+      _isInitialized = true;
+    });
   }
 
-  String? obtenerFolioMesa(int numeroMesa) {
-    return _foliosMesa[numeroMesa];
-  }
-
-  MesaState._internal();
-
-  // Mapa para almacenar el estado de cada mesa
+  // Mapas locales (cache)
   final Map<int, bool> _mesasOcupadas = {};
-
-  // ✅ NUEVO: Mapa para almacenar qué mesero ocupa cada mesa
   final Map<int, String> _meserosPorMesa = {};
-
-  // Mapa separado para pedidos ENVIADOS a cocina
   final Map<int, List<Map<String, dynamic>>> _pedidosEnviadosPorMesa = {};
-
-  // Obtener pedidos ENVIADOS de una mesa
-  List<Map<String, dynamic>> obtenerPedidosEnviados(int numeroMesa) {
-    return _pedidosEnviadosPorMesa[numeroMesa] ?? [];
-  }
-
-  // Mapa para almacenar los pedidos de cada mesa
   final Map<int, List<Map<String, dynamic>>> _pedidosPorMesa = {};
-
-  // Mapa para almacenar el número de comensales por mesa
   final Map<int, int> _comensalesPorMesa = {};
+  final Map<int, String> _foliosMesa = {};
 
-  // Variable para guardar el nombre del mesero actual
   String _meseroActual = "";
-
-  // Getter para obtener el mesero actual
   String get meseroActual => _meseroActual;
 
-  // ✅ NUEVO: Obtener el mesero que ocupa una mesa específica
-  String? obtenerMeseroDeMesa(int numeroMesa) {
-    return _meserosPorMesa[numeroMesa];
+  List<MesaDinamica> _mesasDinamicasCache = [];
+
+  // ✅ FIX: Flag para controlar cuándo notificar
+  bool _isInitialized = false;
+
+  // ✅ NUEVO: Escuchar cambios de Firestore en tiempo real
+  void _iniciarEscuchaDeMesas() {
+    _firestore
+        .collection('mesas_activas')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            print('📄 Actualizando estado de mesas desde Firestore...');
+
+            for (var change in snapshot.docChanges) {
+              final data = change.doc.data();
+              if (data == null) continue;
+
+              final numeroMesa = int.tryParse(change.doc.id);
+              if (numeroMesa == null) continue;
+
+              if (change.type == DocumentChangeType.removed) {
+                // Mesa liberada
+                _mesasOcupadas.remove(numeroMesa);
+                _meserosPorMesa.remove(numeroMesa);
+                _comensalesPorMesa.remove(numeroMesa);
+                print('🟢 Mesa $numeroMesa liberada remotamente');
+              } else {
+                // Mesa ocupada o actualizada
+                _mesasOcupadas[numeroMesa] = data['ocupada'] ?? false;
+                _meserosPorMesa[numeroMesa] = data['mesero'] ?? '';
+                _comensalesPorMesa[numeroMesa] = data['comensales'] ?? 0;
+                print(
+                  '🔵 Mesa $numeroMesa ocupada por ${data['mesero']} (remoto)',
+                );
+              }
+            }
+
+            // ✅ FIX: Solo notificar si ya se inicializó
+            if (_isInitialized) {
+              notifyListeners();
+            }
+          },
+          onError: (error) {
+            print('❌ Error escuchando mesas: $error');
+          },
+        );
   }
 
-  // ✅ NUEVO: Verificar si el mesero actual puede acceder a una mesa
-  bool puedeAccederMesa(int numeroMesa) {
-    // Si la mesa no está ocupada, cualquiera puede acceder
-    if (!estaMesaOcupada(numeroMesa)) {
-      return true;
-    }
-
-    // Si está ocupada, solo el mesero que la ocupó puede acceder
-    final meseroDeLaMesa = _meserosPorMesa[numeroMesa];
-    return meseroDeLaMesa == _meseroActual;
-  }
-
-  // ✅ NUEVO: Obtener todas las mesas del mesero actual
-  List<int> obtenerMesasDelMeseroActual() {
-    return _meserosPorMesa.entries
-        .where((entry) => entry.value == _meseroActual)
-        .map((entry) => entry.key)
-        .toList();
-  }
-
-  // ✅ NUEVO: Obtener mesas ocupadas por otros meseros
-  List<int> obtenerMesasDeOtrosMeseros() {
-    return _meserosPorMesa.entries
-        .where(
-          (entry) =>
-              entry.value != _meseroActual && _mesasOcupadas[entry.key] == true,
-        )
-        .map((entry) => entry.key)
-        .toList();
-  }
-
-  // Método para establecer el mesero después del login
   void establecerMesero(String nombreMesero) {
     _meseroActual = nombreMesero;
     print('👤 Mesero establecido: $_meseroActual');
-    print('📊 Mesas actuales del mesero: ${obtenerMesasDelMeseroActual()}');
     notifyListeners();
   }
 
@@ -94,7 +91,6 @@ class MesaState extends ChangeNotifier {
     return _mesasOcupadas[numeroMesa] ?? false;
   }
 
-  // Obtener todas las mesas actualmente ocupadas
   List<int> obtenerMesasOcupadas() {
     return _mesasOcupadas.entries
         .where((entry) => entry.value == true)
@@ -102,25 +98,46 @@ class MesaState extends ChangeNotifier {
         .toList();
   }
 
-  // ✅ MODIFICADO: Registrar qué mesero ocupa la mesa
-  void ocuparMesa(int numeroMesa, int comensales) {
+  String? obtenerMeseroDeMesa(int numeroMesa) {
+    return _meserosPorMesa[numeroMesa];
+  }
+
+  bool puedeAccederMesa(int numeroMesa) {
+    if (!estaMesaOcupada(numeroMesa)) return true;
+    return _meserosPorMesa[numeroMesa] == _meseroActual;
+  }
+
+  // ✅ MODIFICADO: Guardar en Firestore cuando se ocupa una mesa
+  Future<void> ocuparMesa(int numeroMesa, int comensales) async {
     _mesasOcupadas[numeroMesa] = true;
     _comensalesPorMesa[numeroMesa] = comensales;
-    _meserosPorMesa[numeroMesa] = _meseroActual; // 👈 NUEVO: Registrar mesero
+    _meserosPorMesa[numeroMesa] = _meseroActual;
 
-    // Si no existe, inicializar lista vacía
     if (!_pedidosPorMesa.containsKey(numeroMesa)) {
       _pedidosPorMesa[numeroMesa] = [];
     }
 
-    print(
-      '🔵 Mesa $numeroMesa ocupada por $_meseroActual ($comensales comensales)',
-    );
+    // ✅ Guardar en Firestore
+    try {
+      await _firestore
+          .collection('mesas_activas')
+          .doc(numeroMesa.toString())
+          .set({
+            'ocupada': true,
+            'mesero': _meseroActual,
+            'comensales': comensales,
+            'fechaApertura': FieldValue.serverTimestamp(),
+          });
+      print('✅ Mesa $numeroMesa guardada en Firestore');
+    } catch (e) {
+      print('❌ Error guardando mesa en Firestore: $e');
+    }
+
     notifyListeners();
   }
 
-  // ✅ MODIFICADO: Limpiar también el registro del mesero
-  void liberarMesa(int numeroMesa) {
+  // ✅ MODIFICADO: Eliminar de Firestore cuando se libera una mesa
+  Future<void> liberarMesa(int numeroMesa) async {
     final mesero = _meserosPorMesa[numeroMesa];
 
     _mesasOcupadas[numeroMesa] = false;
@@ -128,24 +145,86 @@ class MesaState extends ChangeNotifier {
     _pedidosEnviadosPorMesa.remove(numeroMesa);
     _comensalesPorMesa.remove(numeroMesa);
     _foliosMesa.remove(numeroMesa);
-    _meserosPorMesa.remove(numeroMesa); // 👈 NUEVO: Limpiar registro de mesero
+    _meserosPorMesa.remove(numeroMesa);
 
-    print('🟢 Mesa $numeroMesa liberada (era de $mesero)');
+    // ✅ Eliminar de Firestore
+    try {
+      await _firestore
+          .collection('mesas_activas')
+          .doc(numeroMesa.toString())
+          .delete();
+      print('✅ Mesa $numeroMesa eliminada de Firestore');
+    } catch (e) {
+      print('❌ Error eliminando mesa de Firestore: $e');
+    }
+
     notifyListeners();
   }
 
-  // Obtener pedidos de una mesa específica
+  // --- DENTRO DE LA CLASE MesaState ---
+
+  // Método para intentar "adueñarse" de la mesa en Firebase
+  Future<bool> intentarOcuparMesa(int numeroMesa, String nombreMesero) async {
+    try {
+      final docRef = _firestore
+          .collection('mesas_activas')
+          .doc(numeroMesa.toString());
+      final doc = await docRef.get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        // Si la mesa ya está ocupada por otro mesero, denegar acceso
+        if (data['ocupada'] == true && data['mesero'] != nombreMesero) {
+          return false;
+        }
+      }
+
+      // Si está libre o soy yo mismo, actualizo el bloqueo
+      await docRef.set({
+        'ocupada': true,
+        'mesero': nombreMesero,
+        'ultima_actividad': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    } catch (e) {
+      print("Error al ocupar mesa: $e");
+      return false;
+    }
+  }
+
+  // Método para liberar la mesa (llámalo al cerrar la cuenta o salir)
+  Future<void> liberarBloqueoMesa(int numeroMesa) async {
+    try {
+      await _firestore
+          .collection('mesas_activas')
+          .doc(numeroMesa.toString())
+          .update({'ocupada': false, 'mesero': ''});
+    } catch (e) {
+      print("Error al liberar mesa: $e");
+    }
+  }
+
+  // Helper para saber quién tiene la mesa (para el mensaje de error)
+  String obtenerNombreOcupante(int numeroMesa) {
+    return _meserosPorMesa[numeroMesa] ?? "Otro mesero";
+  }
+
+  // ... El resto de tus métodos permanecen igual ...
+
+  List<Map<String, dynamic>> obtenerPedidosEnviados(int numeroMesa) {
+    return _pedidosEnviadosPorMesa[numeroMesa] ?? [];
+  }
+
   List<Map<String, dynamic>> obtenerPedidos(int numeroMesa) {
     return _pedidosPorMesa[numeroMesa] ?? [];
   }
 
-  // Guardar pedidos de una mesa
   void guardarPedidos(int numeroMesa, List<Map<String, dynamic>> pedidos) {
     _pedidosPorMesa[numeroMesa] = List.from(pedidos);
     notifyListeners();
   }
 
-  // Método para agregar un pedido con toda la info
   void agregarPedido(int numeroMesa, List<Map<String, dynamic>> alimentos) {
     if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) {
       _pedidosEnviadosPorMesa[numeroMesa] = [];
@@ -158,47 +237,48 @@ class MesaState extends ChangeNotifier {
     };
 
     _pedidosEnviadosPorMesa[numeroMesa]!.add(pedido);
-
-    // Limpiar pedidos locales después de enviar
     _pedidosPorMesa[numeroMesa] = [];
-
     notifyListeners();
   }
 
-  // Obtener comensales de una mesa
   int obtenerComensales(int numeroMesa) {
     return _comensalesPorMesa[numeroMesa] ?? 0;
   }
 
-  // ✅ MODIFICADO: Limpiar todo incluyendo registros de meseros
+  void guardarFolioMesa(int numeroMesa, String folio) {
+    _foliosMesa[numeroMesa] = folio;
+    notifyListeners();
+  }
+
+  String? obtenerFolioMesa(int numeroMesa) {
+    return _foliosMesa[numeroMesa];
+  }
+
   void limpiarTodo() {
     _mesasOcupadas.clear();
     _pedidosPorMesa.clear();
     _pedidosEnviadosPorMesa.clear();
     _comensalesPorMesa.clear();
-    _meserosPorMesa.clear(); // 👈 NUEVO: Limpiar meseros
+    _meserosPorMesa.clear();
     _meseroActual = "";
     notifyListeners();
   }
 
-  // Obtener resumen completo de una mesa
   Map<String, dynamic> obtenerResumenMesa(int numeroMesa) {
     final ocupada = estaMesaOcupada(numeroMesa);
     final comensales = obtenerComensales(numeroMesa);
     final pedidosLocales = obtenerPedidos(numeroMesa);
     final pedidosEnviados = obtenerPedidosEnviados(numeroMesa);
-    final mesero = _meserosPorMesa[numeroMesa]; // 👈 NUEVO
+    final mesero = _meserosPorMesa[numeroMesa];
 
     int totalProductos = 0;
     double totalGeneral = 0.0;
 
-    // Contar productos locales
     for (var pedido in pedidosLocales) {
       totalProductos += pedido['cantidad'] as int;
       totalGeneral += pedido['total'] as double;
     }
 
-    // Contar productos enviados
     for (var pedidoEnviado in pedidosEnviados) {
       final alimentos = pedidoEnviado['alimentos'] as List;
       for (var alimento in alimentos) {
@@ -214,12 +294,11 @@ class MesaState extends ChangeNotifier {
       'totalGeneral': totalGeneral,
       'pedidosLocales': pedidosLocales.length,
       'pedidosEnviados': pedidosEnviados.length,
-      'mesero': mesero, // 👈 NUEVO: Incluir mesero en el resumen
-      'esMesaPropia': mesero == _meseroActual, // 👈 NUEVO
+      'mesero': mesero,
+      'esMesaPropia': mesero == _meseroActual,
     };
   }
 
-  // Obtener estadísticas generales del restaurante
   Map<String, dynamic> obtenerEstadisticasGenerales() {
     int mesasOcupadas = 0;
     int totalComensales = 0;
@@ -229,7 +308,6 @@ class MesaState extends ChangeNotifier {
       if (_mesasOcupadas[numeroMesa] == true) {
         mesasOcupadas++;
         totalComensales += obtenerComensales(numeroMesa);
-
         final resumen = obtenerResumenMesa(numeroMesa);
         ventaTotal += resumen['totalGeneral'] as double;
       }
@@ -247,83 +325,201 @@ class MesaState extends ChangeNotifier {
     String nombreProducto,
     int cantidad,
   ) {
-    print('🔍 Buscando producto para eliminar:');
-    print('   Mesa: $numeroMesa');
-    print('   Producto: $nombreProducto');
-    print('   Cantidad: $cantidad');
-
-    // Verificar si la mesa tiene pedidos enviados
-    if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) {
-      print('⚠️ No hay pedidos enviados para la mesa $numeroMesa');
-      return;
-    }
+    if (!_pedidosEnviadosPorMesa.containsKey(numeroMesa)) return;
 
     List<Map<String, dynamic>> pedidos = _pedidosEnviadosPorMesa[numeroMesa]!;
-    print('📋 Total de pedidos enviados: ${pedidos.length}');
-
     bool productoEliminado = false;
 
-    // Recorrer cada pedido
     for (int i = 0; i < pedidos.length; i++) {
       var pedido = pedidos[i];
-
       if (pedido['alimentos'] != null) {
         List<dynamic> alimentos = List.from(pedido['alimentos']);
-        int alimentosAntes = alimentos.length;
-
-        print('   📦 Pedido $i - Alimentos antes: $alimentosAntes');
-
-        // Buscar y eliminar el producto
         alimentos.removeWhere((alimento) {
           bool coincide =
               alimento['nombre'] == nombreProducto &&
               alimento['cantidad'] == cantidad;
-
-          if (coincide) {
-            print(
-              '   🗑️ ¡ENCONTRADO! Eliminando: ${alimento['nombre']} (${alimento['cantidad']})',
-            );
-            productoEliminado = true;
-          }
-
+          if (coincide) productoEliminado = true;
           return coincide;
         });
-
-        print('   📦 Pedido $i - Alimentos después: ${alimentos.length}');
-
-        // Actualizar la lista de alimentos en el pedido
         pedido['alimentos'] = alimentos;
       }
     }
 
-    // Eliminar pedidos que quedaron sin alimentos
-    int pedidosAntes = pedidos.length;
     pedidos.removeWhere(
       (pedido) =>
           pedido['alimentos'] == null || (pedido['alimentos'] as List).isEmpty,
     );
 
-    if (pedidos.length < pedidosAntes) {
-      print('🧹 Se eliminaron ${pedidosAntes - pedidos.length} pedidos vacíos');
-    }
-
-    // Actualizar el mapa
     if (pedidos.isEmpty) {
       _pedidosEnviadosPorMesa.remove(numeroMesa);
-      print(
-        '🧹 Todos los pedidos enviados fueron eliminados de la mesa $numeroMesa',
-      );
     } else {
       _pedidosEnviadosPorMesa[numeroMesa] = pedidos;
-      print('💾 Pedidos actualizados: ${pedidos.length} pedidos restantes');
     }
 
-    if (productoEliminado) {
-      notifyListeners();
-      print('✅ Producto eliminado exitosamente y listeners notificados');
-    } else {
-      print('⚠️ No se encontró el producto en pedidos enviados');
-      print('   Verifica que el nombre y cantidad sean exactos');
+    if (productoEliminado) notifyListeners();
+  }
+
+  List<MesaDinamica> obtenerMesasDinamicas() {
+    return _mesasDinamicasCache;
+  }
+
+  // ✅ FIX: Método privado que carga sin notificar (para usar en constructor)
+  Future<void> _cargarMesasDinamicasInicial() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mesasJson = prefs.getStringList('mesas_dinamicas') ?? [];
+
+      _mesasDinamicasCache = mesasJson
+          .map((json) => MesaDinamica.fromJson(jsonDecode(json)))
+          .toList();
+
+      print('✅ ${_mesasDinamicasCache.length} mesas dinámicas cargadas');
+      // ✅ NO llamar notifyListeners() aquí durante la construcción
+    } catch (e) {
+      print('❌ Error cargando mesas dinámicas: $e');
+      _mesasDinamicasCache = [];
     }
   }
+
+  /// Cargar mesas dinámicas desde SharedPreferences (versión pública que sí notifica)
+  Future<void> cargarMesasDinamicas() async {
+    await _cargarMesasDinamicasInicial();
+    notifyListeners();
+  }
+
+  /// Guardar mesa dinámica
+  Future<void> guardarMesaDinamica(MesaDinamica mesa) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Obtener mesas existentes
+      final mesasJson = prefs.getStringList('mesas_dinamicas') ?? [];
+
+      // Agregar nueva mesa
+      mesasJson.add(jsonEncode(mesa.toJson()));
+
+      // Guardar
+      await prefs.setStringList('mesas_dinamicas', mesasJson);
+
+      // Actualizar cache
+      _mesasDinamicasCache.add(mesa);
+
+      print('✅ Mesa dinámica ${mesa.numeroMesa} guardada');
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error guardando mesa dinámica: $e');
+    }
+  }
+
+  // ✅ NUEVO: Método para agregar mesa dinámica (wrapper más semántico)
+  Future<void> agregarMesaDinamica(MesaDinamica mesa) async {
+    await guardarMesaDinamica(mesa);
+  }
+
+  /// Eliminar mesa dinámica
+  Future<void> eliminarMesaDinamica(int numeroMesa) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mesasJson = prefs.getStringList('mesas_dinamicas') ?? [];
+
+      // Filtrar la mesa a eliminar
+      final mesasActualizadas = mesasJson.where((json) {
+        final mesa = MesaDinamica.fromJson(jsonDecode(json));
+        return mesa.numeroMesa != numeroMesa;
+      }).toList();
+
+      // Guardar
+      await prefs.setStringList('mesas_dinamicas', mesasActualizadas);
+
+      // Actualizar cache
+      _mesasDinamicasCache.removeWhere((m) => m.numeroMesa == numeroMesa);
+
+      print('✅ Mesa dinámica $numeroMesa eliminada');
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error eliminando mesa dinámica: $e');
+    }
+  }
+
+  /// Limpiar mesas dinámicas desocupadas (útil para limpieza al cerrar turno)
+  Future<void> limpiarMesasDinamicasDesocupadas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Filtrar solo las mesas que están ocupadas
+      final mesasOcupadas = _mesasDinamicasCache
+          .where((mesa) => estaMesaOcupada(mesa.numeroMesa))
+          .toList();
+
+      // Convertir a JSON
+      final mesasJson = mesasOcupadas
+          .map((mesa) => jsonEncode(mesa.toJson()))
+          .toList();
+
+      // Guardar solo las ocupadas
+      await prefs.setStringList('mesas_dinamicas', mesasJson);
+
+      // Actualizar cache
+      final eliminadas = _mesasDinamicasCache.length - mesasOcupadas.length;
+      _mesasDinamicasCache = mesasOcupadas;
+
+      print('✅ $eliminadas mesas dinámicas desocupadas limpiadas');
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error limpiando mesas dinámicas: $e');
+    }
+  }
+
+  // ✅ NUEVO: Método para obtener el estado de una mesa específica
+  MesaEstado? obtenerEstadoMesa(int numeroMesa) {
+    final estaOcupada = estaMesaOcupada(numeroMesa);
+    if (!estaOcupada) return null;
+
+    return MesaEstado(
+      numeroMesa: numeroMesa,
+      estaOcupada: estaOcupada,
+      mesero: _meserosPorMesa[numeroMesa],
+      comensales: _comensalesPorMesa[numeroMesa],
+    );
+  }
+}
+
+// ====================================================================
+// ✅ CLASE PARA MESAS DINÁMICAS
+// ====================================================================
+
+class MesaDinamica {
+  final int numeroMesa;
+  final int cantidadPersonas;
+
+  MesaDinamica({required this.numeroMesa, required this.cantidadPersonas});
+
+  Map<String, dynamic> toJson() {
+    return {'numeroMesa': numeroMesa, 'cantidadPersonas': cantidadPersonas};
+  }
+
+  factory MesaDinamica.fromJson(Map<String, dynamic> json) {
+    return MesaDinamica(
+      numeroMesa: json['numeroMesa'] as int,
+      cantidadPersonas: json['cantidadPersonas'] as int,
+    );
+  }
+}
+
+// ====================================================================
+// ✅ CLASE PARA ESTADO DE MESA
+// ====================================================================
+
+class MesaEstado {
+  final int numeroMesa;
+  final bool estaOcupada;
+  final String? mesero;
+  final int? comensales;
+
+  MesaEstado({
+    required this.numeroMesa,
+    required this.estaOcupada,
+    this.mesero,
+    this.comensales,
+  });
 }

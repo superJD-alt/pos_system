@@ -1,81 +1,112 @@
 import 'package:flutter/material.dart';
-import '../models/auth_service.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthDialog extends StatefulWidget {
   final String titulo;
   final String mensaje;
 
-  const AuthDialog({
-    super.key,
-    this.titulo = 'Autorización requerida',
-    this.mensaje = 'Ingrese las credenciales de administrador',
-  });
+  const AuthDialog({super.key, required this.titulo, required this.mensaje});
 
   @override
   State<AuthDialog> createState() => _AuthDialogState();
 }
 
 class _AuthDialogState extends State<AuthDialog> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usuarioController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _mostrarPassword = false;
-  bool _verificando = false;
+  bool _cargando = false;
   String? _errorMensaje;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usuarioController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _verificarCredenciales() async {
-    final email = _emailController.text.trim();
+  Future<void> _validarCredenciales() async {
+    // Limpiar mensajes de error previos
+    setState(() {
+      _errorMensaje = null;
+      _cargando = true;
+    });
+
+    final usuario = _usuarioController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    // Validar que se ingresaron los datos
+    if (usuario.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMensaje = 'Por favor complete todos los campos';
+        _errorMensaje = 'Por favor ingresa correo y contraseña';
+        _cargando = false;
       });
       return;
     }
 
-    setState(() {
-      _verificando = true;
-      _errorMensaje = null;
-    });
+    // Validar longitud exacta
+    if (usuario.length != 3) {
+      setState(() {
+        _errorMensaje = 'El correo debe tener exactamente 3 dígitos';
+        _cargando = false;
+      });
+      return;
+    }
+
+    if (password.length != 6) {
+      setState(() {
+        _errorMensaje = 'La contraseña debe tener exactamente 6 dígitos';
+        _cargando = false;
+      });
+      return;
+    }
 
     try {
-      // Verificar credenciales con Firebase Auth
-      final adminData = await AuthService.verificarCredencialesAdmin(
-        email,
-        password,
-      );
+      // Construir el correo completo con los 3 dígitos ingresados
+      final correoCompleto = '$usuario@pv.com';
 
-      if (!mounted) return;
+      // Buscar el usuario en Firestore con el correo completo
+      final QuerySnapshot usuariosSnapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .where('email', isEqualTo: correoCompleto)
+          .where('rol', isEqualTo: 'Administrador')
+          .limit(1)
+          .get();
 
-      if (adminData != null) {
-        // Credenciales correctas
-        Navigator.pop(context, {
-          'autorizado': true,
-          'adminNombre': adminData['nombre'],
-          'adminId': adminData['id'],
-          'adminEmail': adminData['email'],
-        });
-      } else {
-        // Credenciales incorrectas o no es admin
+      if (usuariosSnapshot.docs.isEmpty) {
         setState(() {
-          _errorMensaje = 'Credenciales incorrectas o no es administrador';
-          _passwordController.clear();
-          _verificando = false;
+          _errorMensaje = 'Correo no encontrado o no es administrador';
+          _cargando = false;
+        });
+        return;
+      }
+
+      final usuarioDoc = usuariosSnapshot.docs.first;
+      final datosUsuario = usuarioDoc.data() as Map<String, dynamic>;
+      final passwordGuardado = datosUsuario['passwordTemporal'] as String?;
+      final nombreAdmin = datosUsuario['nombre'] as String? ?? 'Administrador';
+
+      // Validar contraseña
+      if (passwordGuardado != password) {
+        setState(() {
+          _errorMensaje = 'Contraseña incorrecta';
+          _cargando = false;
+        });
+        return;
+      }
+
+      // ✅ Credenciales válidas
+      if (mounted) {
+        Navigator.of(context).pop({
+          'autorizado': true,
+          'adminNombre': nombreAdmin,
+          'adminId': usuario,
         });
       }
     } catch (e) {
-      if (!mounted) return;
-
       setState(() {
-        _errorMensaje = 'Error al verificar: $e';
-        _verificando = false;
+        _errorMensaje = 'Error al validar credenciales: $e';
+        _cargando = false;
       });
     }
   }
@@ -85,10 +116,13 @@ class _AuthDialogState extends State<AuthDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          const Icon(Icons.lock, color: Colors.orange, size: 28),
-          const SizedBox(width: 10),
+          const Icon(Icons.admin_panel_settings, color: Colors.red, size: 32),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(widget.titulo, style: const TextStyle(fontSize: 18)),
+            child: Text(
+              widget.titulo,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -97,111 +131,95 @@ class _AuthDialogState extends State<AuthDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.mensaje,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-
-            // Información
+            // Mensaje de advertencia
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: Colors.orange, width: 2),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.warning, color: Colors.orange, size: 24),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Ingrese el email y contraseña de un administrador',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      widget.mensaje,
+                      style: const TextStyle(fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
 
-            // Campo de email
+            // Campo de correo (3 dígitos)
             TextField(
-              controller: _emailController,
-              enabled: !_verificando,
-              keyboardType: TextInputType.emailAddress,
+              controller: _usuarioController,
+              keyboardType: TextInputType.number,
+              maxLength: 3,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(3),
+              ],
               decoration: InputDecoration(
-                labelText: 'Email de administrador',
+                labelText: 'Correo (3 dígitos)',
+                hintText: 'Ej: 123 (de 123@pv.com)',
                 prefixIcon: const Icon(Icons.email),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                counterText: '', // Ocultar contador de caracteres
               ),
-              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => _validarCredenciales(),
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 16),
 
-            // Campo de contraseña
+            // Campo de contraseña (6 dígitos)
             TextField(
               controller: _passwordController,
-              obscureText: !_mostrarPassword,
-              enabled: !_verificando,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
               decoration: InputDecoration(
-                labelText: 'Contraseña',
+                labelText: 'Contraseña (6 dígitos)',
+                hintText: 'Ej: 123456',
                 prefixIcon: const Icon(Icons.lock),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _mostrarPassword ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _mostrarPassword = !_mostrarPassword;
-                    });
-                  },
-                ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                counterText: '', // Ocultar contador de caracteres
               ),
-              onSubmitted: (_) => _verificarCredenciales(),
+              onSubmitted: (_) => _validarCredenciales(),
             ),
-
-            // Indicador de carga
-            if (_verificando) ...[
-              const SizedBox(height: 15),
-              const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 8),
-              const Center(
-                child: Text(
-                  'Verificando...',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-            ],
 
             // Mensaje de error
             if (_errorMensaje != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red, width: 1),
+                  border: Border.all(color: Colors.red, width: 2),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.error, color: Colors.red, size: 24),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         _errorMensaje!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -213,22 +231,26 @@ class _AuthDialogState extends State<AuthDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _verificando ? null : () => Navigator.pop(context, null),
+          onPressed: _cargando
+              ? null
+              : () {
+                  Navigator.of(context).pop({'autorizado': false});
+                },
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: _verificando ? null : _verificarCredenciales,
+          onPressed: _cargando ? null : _validarCredenciales,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.green,
             foregroundColor: Colors.white,
           ),
-          child: _verificando
+          child: _cargando
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
               : const Text('Autorizar'),

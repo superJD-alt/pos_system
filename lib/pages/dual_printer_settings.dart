@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:pos_system/models/printer_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class DualPrinterSettingsPage extends StatefulWidget {
   const DualPrinterSettingsPage({Key? key}) : super(key: key);
@@ -52,7 +53,42 @@ class _DualPrinterSettingsPageState extends State<DualPrinterSettingsPage> {
     });
   }
 
+  // AGREGA ESTE MÉTODO NUEVO
+  Future<bool> _solicitarPermisosBluetooth() async {
+    if (await Permission.bluetoothScan.isGranted &&
+        await Permission.bluetoothConnect.isGranted) {
+      return true;
+    }
+
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+
+    bool todosOtorgados = statuses.values.every((status) => status.isGranted);
+
+    if (!todosOtorgados) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚠️ Se necesitan permisos de Bluetooth para buscar impresoras',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+
+    return todosOtorgados;
+  }
+
   Future<void> _scanForPrinters() async {
+    final permisosOk = await _solicitarPermisosBluetooth();
+    if (!permisosOk) {
+      return; // No continuar si no hay permisos
+    }
     setState(() {
       _isScanning = true;
       _printers.clear();
@@ -440,7 +476,7 @@ class _DualPrinterSettingsPageState extends State<DualPrinterSettingsPage> {
 
           // Tabs Bluetooth y WiFi
           DefaultTabController(
-            length: 2,
+            length: 1,
             child: Column(
               children: [
                 TabBar(
@@ -449,7 +485,7 @@ class _DualPrinterSettingsPageState extends State<DualPrinterSettingsPage> {
                   indicatorColor: color,
                   tabs: const [
                     Tab(icon: Icon(Icons.bluetooth), text: 'Bluetooth'),
-                    Tab(icon: Icon(Icons.wifi), text: 'WiFi'),
+                    //Tab(icon: Icon(Icons.wifi), text: 'WiFi'),
                   ],
                 ),
                 SizedBox(
@@ -457,7 +493,7 @@ class _DualPrinterSettingsPageState extends State<DualPrinterSettingsPage> {
                   child: TabBarView(
                     children: [
                       _buildBluetoothTab(tipo, color),
-                      _buildWiFiTab(tipo, color, ipController),
+                      //_buildWiFiTab(tipo, color, ipController),
                     ],
                   ),
                 ),
@@ -580,76 +616,6 @@ class _DualPrinterSettingsPageState extends State<DualPrinterSettingsPage> {
                       );
                     },
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWiFiTab(
-    TipoImpresora tipo,
-    Color color,
-    TextEditingController controller,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: 'Dirección IP',
-              hintText: '192.168.1.100',
-              prefixIcon: const Icon(Icons.computer),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-
-          const SizedBox(height: 16),
-
-          ElevatedButton.icon(
-            onPressed: () => _connectWifi(tipo, controller.text),
-            icon: const Icon(Icons.wifi),
-            label: const Text('CONECTAR'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.all(14),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  '💡 Consejos:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '• Misma red WiFi que la tablet',
-                  style: TextStyle(fontSize: 11),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '• Usa IP fija (configurada en router)',
-                  style: TextStyle(fontSize: 11),
-                ),
-              ],
-            ),
           ),
         ],
       ),

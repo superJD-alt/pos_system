@@ -13,22 +13,45 @@ class CustomTable extends StatefulWidget {
 }
 
 class _CustomTableState extends State<CustomTable> {
+  final MesaState mesaState = MesaState();
+
+  // ✅ NUEVAS VARIABLES
+  List<MesaDinamica> mesasDinamicas = [];
+  int siguienteNumeroMesa = 15;
+  bool _listenerAdded = false;
+
   @override
   void initState() {
     super.initState();
-    print('📱 Permitiendo todas las orientaciones');
     _setOrientation([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    _cargarMesasDinamicas();
+
+    // ✅ FIX: Agregar el listener aquí en initState
+    mesaState.addListener(_onMesaStateChanged);
+    _listenerAdded = true;
   }
 
   @override
   void dispose() {
-    print('📱 Manteniendo todas las orientaciones');
+    mesaState.removeListener(_onMesaStateChanged);
     super.dispose();
+  }
+
+  void _onMesaStateChanged() {
+    if (!mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      setState(() {
+        mesasDinamicas = mesaState.obtenerMesasDinamicas();
+      });
+    });
   }
 
   Future<void> _setOrientation(List<DeviceOrientation> orientations) async {
@@ -40,6 +63,474 @@ class _CustomTableState extends State<CustomTable> {
     }
   }
 
+  void _cargarMesasDinamicas() {
+    final mesasGuardadas = mesaState.obtenerMesasDinamicas();
+    setState(() {
+      mesasDinamicas = mesasGuardadas;
+      if (mesasDinamicas.isNotEmpty) {
+        final maxNumero = mesasDinamicas
+            .map((m) => m.numeroMesa)
+            .reduce((a, b) => a > b ? a : b);
+        siguienteNumeroMesa = max(100, maxNumero + 1);
+      }
+    });
+  }
+
+  void _mostrarDialogoAgregarMesa() {
+    int cantidadPersonas = 4;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.add_circle, color: Colors.blue.shade700, size: 28),
+                  const SizedBox(width: 10),
+                  const Text('Agregar Mesa Temporal'),
+                ],
+              ),
+              content: SizedBox(
+                width: 400,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Esta mesa aparecerá al final y se puede eliminar cuando no se necesite.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.shade400,
+                              Colors.green.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.restaurant,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Mesa #$siguienteNumeroMesa',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Capacidad de la mesa:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 180,
+                        child: GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.5,
+                          children: [2, 4, 6, 8, 10, 12].map((personas) {
+                            final bool seleccionado =
+                                cantidadPersonas == personas;
+                            return InkWell(
+                              onTap: () {
+                                setDialogState(() {
+                                  cantidadPersonas = personas;
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: seleccionado
+                                      ? Colors.blue.shade600
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: seleccionado
+                                        ? Colors.blue.shade800
+                                        : Colors.grey.shade300,
+                                    width: seleccionado ? 3 : 2,
+                                  ),
+                                  boxShadow: seleccionado
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                      : [],
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      color: seleccionado
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                      size: 28,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '$personas',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: seleccionado
+                                            ? Colors.white
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _agregarMesaDinamica(cantidadPersonas);
+                    Navigator.pop(dialogContext);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text('Crear Mesa'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _agregarMesaDinamica(int cantidadPersonas) {
+    final nuevaMesa = MesaDinamica(
+      numeroMesa: siguienteNumeroMesa,
+      cantidadPersonas: cantidadPersonas,
+    );
+
+    mesaState.agregarMesaDinamica(nuevaMesa);
+
+    setState(() {
+      siguienteNumeroMesa++;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Text('Mesa #${siguienteNumeroMesa - 1} creada'),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _eliminarMesaDinamica(int numeroMesa) async {
+    if (mesaState.estaMesaOcupada(numeroMesa)) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange, size: 28),
+              SizedBox(width: 10),
+              Text('Mesa Ocupada'),
+            ],
+          ),
+          content: const Text(
+            'No puedes eliminar una mesa ocupada. Cierra la cuenta primero.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Eliminación'),
+        content: Text('¿Eliminar la Mesa #$numeroMesa?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      await mesaState.eliminarMesaDinamica(numeroMesa);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 10),
+                Text('Mesa #$numeroMesa eliminada'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _abrirMesa(int numeroMesa, int capacidad) async {
+    final TextEditingController comensalesController = TextEditingController();
+
+    final int? comensales = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Mesa $numeroMesa'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Capacidad: $capacidad personas'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: comensalesController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '¿Cuántos comensales?',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final cantidad = int.tryParse(comensalesController.text);
+                if (cantidad != null && cantidad > 0 && cantidad <= capacidad) {
+                  Navigator.pop(dialogContext, cantidad);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Número válido: 1-$capacidad'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Abrir Mesa'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (comensales != null) {
+      mesaState.ocuparMesa(numeroMesa, comensales);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              OrderPage(numeroMesa: numeroMesa, comensales: comensales),
+        ),
+      );
+    }
+  }
+
+  Widget _buildMesaDinamicaCard(MesaDinamica mesa) {
+    final bool estaOcupada = mesaState.estaMesaOcupada(mesa.numeroMesa);
+    final int? comensales = mesaState.obtenerComensales(mesa.numeroMesa);
+
+    return GestureDetector(
+      onTap: () {
+        if (!estaOcupada) {
+          _abrirMesa(mesa.numeroMesa, mesa.cantidadPersonas);
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderPage(
+                numeroMesa: mesa.numeroMesa,
+                comensales: comensales ?? mesa.cantidadPersonas,
+              ),
+            ),
+          );
+        }
+      },
+      onLongPress: () {
+        if (!estaOcupada) {
+          _eliminarMesaDinamica(mesa.numeroMesa);
+        }
+      },
+      child: Container(
+        width: 140,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: estaOcupada
+                ? [Colors.red.shade600, Colors.red.shade800]
+                : [Colors.green.shade600, Colors.green.shade800],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: (estaOcupada ? Colors.red : Colors.green).withOpacity(0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.restaurant, color: Colors.white, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Mesa ${mesa.numeroMesa}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.people, color: Colors.white70, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${mesa.cantidadPersonas}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (estaOcupada && comensales != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '$comensales comensales',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (!estaOcupada)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                  onPressed: () => _eliminarMesaDinamica(mesa.numeroMesa),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,8 +539,38 @@ class _CustomTableState extends State<CustomTable> {
         centerTitle: true,
         backgroundColor: Colors.blue[800],
         foregroundColor: Colors.white,
+        actions: [
+          if (mesasDinamicas.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.add_business, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${mesasDinamicas.length} temp',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
       backgroundColor: Colors.grey[100],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _mostrarDialogoAgregarMesa,
+        backgroundColor: Colors.blue.shade700,
+        icon: const Icon(Icons.add),
+        label: const Text('Mesa Temporal'),
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
@@ -76,18 +597,16 @@ class _CustomTableState extends State<CustomTable> {
           final horizontalMargin = width * (isSmallScreen ? 0.03 : 0.04);
           final verticalMargin = height * (isSmallScreen ? 0.04 : 0.05);
 
+          Widget contenidoPrincipal;
+
           if (isLargeScreen && isLandscape) {
-            // 🖥️ PANTALLAS GRANDES EN LANDSCAPE
-            return _buildLargeLandscapeLayout(width, height);
+            contenidoPrincipal = _buildLargeLandscapeLayout(width, height);
           } else if (isMediumScreen && isLandscape) {
-            // 💻 PANTALLAS MEDIANAS EN LANDSCAPE
-            return _buildMediumLandscapeLayout(width, height);
+            contenidoPrincipal = _buildMediumLandscapeLayout(width, height);
           } else if (isSmallScreen && isLandscape) {
-            // 📱 PANTALLAS PEQUEÑAS EN LANDSCAPE
-            return _buildSmallLandscapeLayout(width, height);
+            contenidoPrincipal = _buildSmallLandscapeLayout(width, height);
           } else {
-            // 📱 MODO PORTRAIT (Todas las pantallas)
-            return _buildPortraitLayout(
+            contenidoPrincipal = _buildPortraitLayout(
               width,
               height,
               baseSize,
@@ -99,6 +618,74 @@ class _CustomTableState extends State<CustomTable> {
               isSmallScreen,
             );
           }
+
+          // ✅ NUEVO: Incluir mesas dinámicas
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(
+                  width: width,
+                  height: height - (mesasDinamicas.isEmpty ? 0 : 180),
+                  child: contenidoPrincipal,
+                ),
+
+                // ✅ Sección de mesas dinámicas
+                if (mesasDinamicas.isNotEmpty)
+                  Container(
+                    width: width,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, -5),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.add_business,
+                              color: Colors.blue.shade700,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Mesas Temporales',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: mesasDinamicas.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: _buildMesaDinamicaCard(
+                                  mesasDinamicas[index],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
         },
       ),
     );
@@ -721,6 +1308,33 @@ class MesaBase extends StatefulWidget {
 class _MesaBaseState extends State<MesaBase> {
   final MesaState mesaState = MesaState();
   String numeroSeleccionado = '';
+  bool _listenerAdded = false;
+
+  void _onMesaStateChanged() {
+    if (!mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      setState(() {
+        // Solo refrescar el widget cuando hay cambios en el estado
+      });
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ FIX: Agregar listener en initState
+    mesaState.addListener(_onMesaStateChanged);
+    _listenerAdded = true;
+  }
+
+  @override
+  void dispose() {
+    mesaState.removeListener(_onMesaStateChanged);
+    super.dispose();
+  }
 
   void _mostrarTecladoComensales() {
     final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
@@ -743,7 +1357,6 @@ class _MesaBaseState extends State<MesaBase> {
           final screenWidth = screenSize.width;
           final screenHeight = screenSize.height;
 
-          // ✅ Responsividad mejorada para el diálogo
           final isSmallScreen = screenWidth < 600;
           final isMediumScreen = screenWidth >= 600 && screenWidth < 900;
           final isLargeScreen = screenWidth >= 900;
@@ -798,7 +1411,6 @@ class _MesaBaseState extends State<MesaBase> {
                       ),
                     ),
                     SizedBox(height: isSmallScreen ? 12 : 16),
-                    // Display del número seleccionado
                     Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(
@@ -827,7 +1439,6 @@ class _MesaBaseState extends State<MesaBase> {
                       ),
                     ),
                     SizedBox(height: isSmallScreen ? 14 : 20),
-                    // Teclado
                     _buildTecladoNumerico(
                       setDialogState,
                       dialogWidth,
@@ -1023,43 +1634,34 @@ class _MesaBaseState extends State<MesaBase> {
     final bool esCircular = widget.cantidadPersonas == 2;
     final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
     final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+    final String? meseroDeLaMesa = mesaState.obtenerMeseroDeMesa(
+      widget.numeroMesa,
+    );
+    final bool esMesaPropia = mesaState.puedeAccederMesa(widget.numeroMesa);
+    final bool esMesaDeOtroMesero = estaOcupada && !esMesaPropia;
 
-    return ListenableBuilder(
-      listenable: mesaState,
-      builder: (context, child) {
-        final bool esCircular = widget.cantidadPersonas == 2;
-        final int? comensales = mesaState.obtenerComensales(widget.numeroMesa);
-        final bool estaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
-        final String? meseroDeLaMesa = mesaState.obtenerMeseroDeMesa(
-          widget.numeroMesa,
-        );
-        final bool esMesaPropia = mesaState.puedeAccederMesa(widget.numeroMesa);
-        final bool esMesaDeOtroMesero = estaOcupada && !esMesaPropia;
-
-        return GestureDetector(
-          onTap: () {
-            // ✅ Verificar si puede acceder antes de mostrar teclado
-            if (esMesaDeOtroMesero) {
-              _mostrarMensajeMesaBloqueada(meseroDeLaMesa!);
-            } else {
-              _mostrarTecladoComensales();
-            }
-          },
-          child: esCircular
-              ? _mesaCircular(
-                  comensales,
-                  estaOcupada,
-                  esMesaDeOtroMesero,
-                  meseroDeLaMesa,
-                )
-              : _mesaRectangular(
-                  comensales,
-                  estaOcupada,
-                  esMesaDeOtroMesero,
-                  meseroDeLaMesa,
-                ),
-        );
+    return GestureDetector(
+      onTap: () {
+        // ✅ Verificar si puede acceder antes de mostrar teclado
+        if (esMesaDeOtroMesero) {
+          _mostrarMensajeMesaBloqueada(meseroDeLaMesa!);
+        } else {
+          _mostrarTecladoComensales();
+        }
       },
+      child: esCircular
+          ? _mesaCircular(
+              comensales,
+              estaOcupada,
+              esMesaDeOtroMesero,
+              meseroDeLaMesa,
+            )
+          : _mesaRectangular(
+              comensales,
+              estaOcupada,
+              esMesaDeOtroMesero,
+              meseroDeLaMesa,
+            ),
     );
   }
 

@@ -91,17 +91,22 @@ class SidebarMenu extends StatelessWidget {
 
   Widget _buildUserProfileMenu(BuildContext context) {
     return PopupMenuButton<String>(
-      // 1. EL WIDGET QUE SE MUESTRA SIEMPRE
+      // 1. EL WIDGET QUE SE MUESTRA SIEMPRE - ✅ AUMENTADO DE TAMAÑO
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(50), // ✅ Aumentado de 16 a 20
         child: InkWell(
           child: Row(
             children: [
               const CircleAvatar(
+                radius: 24, // ✅ Avatar más grande (default es 20)
                 backgroundColor: Color(0xFF3B82F6),
-                child: Icon(Icons.person, color: Colors.white),
+                child: Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 28, // ✅ Icono más grande
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14), // ✅ Más espacio
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,23 +116,29 @@ class SidebarMenu extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
+                        fontSize:
+                            16, // ✅ Nombre más grande (antes no tenía fontSize definido)
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(
+                      height: 4,
+                    ), // ✅ Espacio entre nombre y "Opciones"
                     Row(
                       children: const [
                         Text(
                           'Opciones ',
                           style: TextStyle(
                             color: Color(0xFF94A3B8),
-                            fontSize: 12,
+                            fontSize:
+                                14, // ✅ "Opciones" más grande (antes era 12)
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         Icon(
                           Icons.arrow_drop_down,
                           color: Color(0xFF94A3B8),
-                          size: 16,
+                          size: 20, // ✅ Icono flecha más grande (antes era 16)
                         ),
                       ],
                     ),
@@ -139,25 +150,46 @@ class SidebarMenu extends StatelessWidget {
         ),
       ),
 
-      // 2. LAS OPCIONES QUE SE DESPLIEGAN
+      // 2. LAS OPCIONES QUE SE DESPLIEGAN - ✅ AUMENTADO EL TAMAÑO
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           enabled: false,
-          child: Text(
-            correoUsuario,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4), // ✅ Más padding
+            child: Text(
+              correoUsuario,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14, // ✅ Texto más grande
+              ),
+            ),
           ),
         ),
         const PopupMenuDivider(),
 
-        // Opción de Cerrar Sesión
+        // ✅ OPCIÓN DE CERRAR SESIÓN MÁS GRANDE
         PopupMenuItem<String>(
           value: 'logout',
+          height: 60, // ✅ Altura aumentada de 48 a 60
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 12, // ✅ Más padding vertical
+          ),
           child: Row(
             children: const [
-              Icon(Icons.logout, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Cerrar Sesión'),
+              Icon(
+                Icons.logout,
+                color: Colors.red,
+                size: 24, // ✅ Icono más grande (default es 20)
+              ),
+              SizedBox(width: 16), // ✅ Más espacio entre icono y texto
+              Text(
+                'Cerrar Sesión',
+                style: TextStyle(
+                  fontSize: 16, // ✅ Texto más grande (default es 14)
+                  fontWeight: FontWeight.w500, // ✅ Texto más grueso
+                ),
+              ),
             ],
           ),
         ),

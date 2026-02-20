@@ -1852,11 +1852,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   ],
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.print, color: Colors.blue),
-                  onPressed: () => _reimprimirTicket(cuentaCerrada),
-                  tooltip: 'Reimprimir',
-                ),
               ],
             ),
           ),
@@ -2073,37 +2068,32 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                const Divider(),
+                // Botones de acción para reimprimir
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _verTicketCompleto(ticket),
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Ver Detalle'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _reimprimirTicket(CuentaCerrada cuenta) async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-      final pdfBytes = await generateTicketPdf(cuenta);
-      if (mounted) Navigator.pop(context);
-      if (mounted) {
-        await _mostrarDialogoTicketReimpresion(pdfBytes, cuenta);
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al reimprimir: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _verTicketCompleto(CuentaCerrada cuenta) async {

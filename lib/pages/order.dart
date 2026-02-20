@@ -46,6 +46,13 @@ class _OrderPageState extends State<OrderPage> {
   int totalItems = 0; //contador de total de items
   double totalGeneral = 0.0; //contador de totalGeneral
 
+  bool _estaCerrandoCuenta = false;
+
+  bool _cuentaYaRegistradaEnCaja = false;
+  String? _idCuentaActual;
+  CuentaCerrada? _cuentaCerradaActual;
+  String? _metodoPagoActual;
+
   final PrinterManager _printerManager = PrinterManager(); //impresora
 
   // ✅ NUEVAS VARIABLES para manejo de caja
@@ -76,6 +83,181 @@ class _OrderPageState extends State<OrderPage> {
     _cargarProductosDesdeFirestore(); //cargar productos de la base de datos
     _verificarCajaAbierta();
     _printerManager.cargarConfiguracion();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _validarAccesoMesa();
+      }
+    });
+  }
+
+  Future<void> _validarAccesoMesa() async {
+    // Pequeño delay para asegurar que mesaState esté actualizado
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final bool mesaOcupada = mesaState.estaMesaOcupada(widget.numeroMesa);
+    final bool puedeAcceder = mesaState.puedeAccederMesa(widget.numeroMesa);
+    final String? meseroAsignado = mesaState.obtenerMeseroDeMesa(
+      widget.numeroMesa,
+    );
+
+    // Si la mesa está ocupada por OTRO mesero
+    if (mesaOcupada && !puedeAcceder && meseroAsignado != null) {
+      // ✅ Mostrar diálogo directamente (ya estamos en un PostFrameCallback)
+      if (mounted) {
+        _mostrarDialogoMesaBloqueada(meseroAsignado);
+      }
+    }
+  }
+
+  void _mostrarDialogoMesaBloqueada(String nombreMesero) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // No puede cerrar tocando fuera
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false, // Bloquear botón de retroceso
+        child: AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.block, color: Colors.red, size: 32),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Mesa Bloqueada', style: TextStyle(fontSize: 20)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade50, Colors.red.shade100],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.person_pin, color: Colors.red, size: 64),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Mesa ${widget.numeroMesa}',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(thickness: 2),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Esta mesa está siendo atendida por:',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red, width: 2),
+                      ),
+                      child: Text(
+                        nombreMesero.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                          letterSpacing: 1.2,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange, width: 2),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Solo el mesero asignado puede acceder a esta mesa. Serás redirigido al panel de mesas.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Cerrar diálogo
+                  Navigator.pop(context);
+                  // Regresar a la pantalla anterior
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.arrow_back, size: 24),
+                label: const Text(
+                  'ENTENDIDO',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _cargarProductosDesdeFirestore() async {
@@ -439,9 +621,9 @@ class _OrderPageState extends State<OrderPage> {
 
   Widget _buildHeader(bool isSmallScreen, bool isMediumScreen) {
     return Padding(
-      padding: const EdgeInsets.all(2.0),
+      padding: const EdgeInsets.all(7.0), // Aumentado de 3.0 a 8.0
       child: Container(
-        height: isSmallScreen ? 45 : 50,
+        height: isSmallScreen ? 55 : 65, // Aumentado de 45/50 a 60/70
         width: double.infinity,
         color: Colors.white,
         child: Row(
@@ -451,21 +633,26 @@ class _OrderPageState extends State<OrderPage> {
                 _guardarPedidosLocales();
                 Navigator.pop(context);
               },
-              icon: Icon(Icons.arrow_back, size: isSmallScreen ? 14 : 16),
+              icon: Icon(
+                Icons.arrow_back,
+                size: isSmallScreen ? 16 : 18,
+              ), // Aumentado
               label: Text(
                 'ATRÁS',
-                style: TextStyle(fontSize: isSmallScreen ? 10 : 12),
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 12 : 14,
+                ), // Aumentado
               ),
               style: _botonEstilo(
-                minWidth: isSmallScreen ? 80 : 100,
-                minHeight: isSmallScreen ? 40 : 45,
+                minWidth: isSmallScreen ? 90 : 110, // Aumentado
+                minHeight: isSmallScreen ? 50 : 60, // Aumentado
               ),
             ),
             const Spacer(),
             Container(
               padding: EdgeInsets.symmetric(
-                horizontal: isSmallScreen ? 8 : 12,
-                vertical: isSmallScreen ? 4 : 6,
+                horizontal: isSmallScreen ? 12 : 16, // Aumentado
+                vertical: isSmallScreen ? 8 : 10, // Aumentado
               ),
               decoration: BoxDecoration(
                 color: Colors.blue.shade100,
@@ -477,13 +664,15 @@ class _OrderPageState extends State<OrderPage> {
                   Text(
                     'Mesa ${widget.numeroMesa}',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 11 : 13,
+                      fontSize: isSmallScreen ? 13 : 15, // Aumentado
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     '${widget.comensales} comensales',
-                    style: TextStyle(fontSize: isSmallScreen ? 9 : 10),
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 10 : 12,
+                    ), // Aumentado
                   ),
                 ],
               ),
@@ -493,12 +682,12 @@ class _OrderPageState extends State<OrderPage> {
               onPressed: _agregarProductoPersonalizado,
               icon: Icon(
                 Icons.add_circle_rounded,
-                size: isSmallScreen ? 16 : 20,
+                size: isSmallScreen ? 18 : 22, // Aumentado
               ),
               label: Text(
                 isSmallScreen ? 'AGREGAR' : 'AGREGAR PRODUCTO',
                 style: TextStyle(
-                  fontSize: isSmallScreen ? 10 : 12,
+                  fontSize: isSmallScreen ? 12 : 14, // Aumentado
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -509,13 +698,13 @@ class _OrderPageState extends State<OrderPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 8 : 16,
-                  vertical: isSmallScreen ? 6 : 10,
+                  horizontal: isSmallScreen ? 12 : 20, // Aumentado
+                  vertical: isSmallScreen ? 10 : 14, // Aumentado
                 ),
                 elevation: 4,
                 minimumSize: Size(
-                  isSmallScreen ? 100 : 140,
-                  isSmallScreen ? 40 : 45,
+                  isSmallScreen ? 110 : 150, // Aumentado
+                  isSmallScreen ? 50 : 60, // Aumentado
                 ),
               ),
             ),
@@ -869,6 +1058,12 @@ class _OrderPageState extends State<OrderPage> {
     final nombreProducto = productoSeleccionado!['nombre'] as String;
     final cantidadProducto = productoSeleccionado!['cantidad'] as int;
     final totalProducto = productoSeleccionado!['total'] as double;
+    final categoriaProducto =
+        productoSeleccionado!['categoria'] as String? ?? '';
+    final notaProducto = productoSeleccionado!['nota'] as String?;
+
+    // Variable para guardar el nombre del administrador que autorizó
+    String? adminNombre;
 
     // 2. Si el producto ya fue enviado, requiere autorización
     if (estaEnviado) {
@@ -893,7 +1088,7 @@ class _OrderPageState extends State<OrderPage> {
         return;
       }
 
-      final String adminNombre = resultado['adminNombre'] ?? 'Administrador';
+      adminNombre = resultado['adminNombre'] ?? 'Administrador';
       print('✅ Cancelación autorizada por: $adminNombre');
     }
 
@@ -1061,6 +1256,17 @@ class _OrderPageState extends State<OrderPage> {
 
       // ⏳ Dar tiempo para que notifyListeners() se propague
       await Future.delayed(const Duration(milliseconds: 100));
+
+      // 🖨️ IMPRIMIR TICKET DE CANCELACIÓN
+      print('\n🖨️ Imprimiendo ticket de cancelación...');
+      await _imprimirTicketCancelacion(
+        nombreProducto: nombreProducto,
+        cantidad: cantidadProducto,
+        total: totalProducto,
+        categoria: categoriaProducto,
+        autorizadoPor: adminNombre ?? 'Administrador',
+        nota: notaProducto,
+      );
     }
 
     // 6. Guardar cambios en pedidos locales
@@ -1115,6 +1321,74 @@ class _OrderPageState extends State<OrderPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  void _enviarPedidoAFirebase() async {
+    if (ordenes.isEmpty) return;
+
+    try {
+      // 1. Preparamos la lista de productos corregida
+      // Usamos map((pedido)) donde 'pedido' es un Map, no un Objeto.
+      final List<Map<String, dynamic>> productosParaTicket = ordenes.map((
+        pedido,
+      ) {
+        // Obtenemos la categoría con seguridad
+        String categoria =
+            (pedido['categoria'] as String?)?.toLowerCase() ?? '';
+
+        // Determinamos si es barra
+        bool esBarra =
+            categoria.contains('bebida') ||
+            categoria.contains('cerveza') ||
+            categoria.contains('tequila') ||
+            categoria.contains('cocteleria') ||
+            categoria.contains('sin alcohol') ||
+            categoria.contains('vinos');
+
+        return {
+          'nombre': pedido['nombre'], // CORREGIDO: Uso de ['key']
+          'cantidad': pedido['cantidad'], // CORREGIDO: Uso de ['key']
+          'precio': pedido['precio'], // CORREGIDO: Uso de ['key']
+          'categoria': pedido['categoria'], // CORREGIDO: Uso de ['key']
+          'nota': pedido['nota'] ?? '',
+          'esBarra': esBarra,
+        };
+      }).toList();
+
+      // 2. Subimos a la colección
+      await FirebaseFirestore.instance.collection('tickets_pendientes').add({
+        'numeroMesa': widget.numeroMesa,
+        'mesero': mesaState.meseroActual,
+        'productos': productosParaTicket,
+        'fecha': FieldValue.serverTimestamp(),
+        'impreso': false,
+      });
+
+      // 3. (Opcional) Limpiar o marcar como enviados localmente
+      setState(() {
+        // Marcar todos como enviados en la lista local para que cambien de color
+        for (var item in ordenes) {
+          item['enviado'] = true;
+        }
+        // Guardar en el historial de la mesa
+        mesaState.agregarPedido(widget.numeroMesa, productosParaTicket);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ Pedido enviado a cocina/barra"),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Opcional: Salir de la pantalla tras enviar
+      // Navigator.pop(context);
+    } catch (e) {
+      print("Error enviando: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ Error al enviar pedido: $e")));
     }
   }
 
@@ -1570,18 +1844,18 @@ class _OrderPageState extends State<OrderPage> {
         Expanded(
           flex: 2,
           child: Padding(
-            padding: const EdgeInsets.only(top: 4.0), // ✅ Padding reducido
+            padding: const EdgeInsets.only(top: 5.0), // ✅ Padding reducido
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const int crossAxisCount = 4;
-                const double mainAxisSpacing = 7; // ✅ Reducido de 8 a 6
-                const double crossAxisSpacing = 7; // ✅ Reducido de 8 a 6
+                const double mainAxisSpacing = 5; // ✅ Reducido de 8 a 6
+                const double crossAxisSpacing = 5; // ✅ Reducido de 8 a 6
 
                 final double itemWidth =
                     (constraints.maxWidth -
                         crossAxisSpacing * (crossAxisCount - 1)) /
                     crossAxisCount;
-                const double desiredItemHeight = 65.0; // ✅ Reducido de 65 a 50
+                const double desiredItemHeight = 55.0; // ✅ Reducido de 65 a 50
                 final double responsiveChildAspectRatio =
                     itemWidth / desiredItemHeight;
 
@@ -1677,17 +1951,27 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   Widget _botonAccion(IconData icono, String texto, VoidCallback onPressed) {
+    bool estaDeshabilitado = (texto == "CUENTA" && _estaCerrandoCuenta);
+
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: estaDeshabilitado ? null : onPressed,
       style: ButtonStyle(
-        minimumSize: WidgetStateProperty.all(const Size(60, 35)),
+        minimumSize: WidgetStateProperty.all(const Size(55, 30)),
         backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          // 🔧 NUEVO: Si está deshabilitado, color gris
+          if (estaDeshabilitado) {
+            return Colors.grey.shade400;
+          }
           if (states.contains(WidgetState.pressed)) {
             return Colors.blue.shade700;
           }
           return Colors.white;
         }),
         foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          // 🔧 NUEVO: Si está deshabilitado, texto blanco
+          if (estaDeshabilitado) {
+            return Colors.white;
+          }
           if (states.contains(WidgetState.pressed)) {
             return Colors.white;
           }
@@ -1697,30 +1981,35 @@ class _OrderPageState extends State<OrderPage> {
           if (states.contains(WidgetState.pressed)) {
             return 1;
           }
-          return 2; // ✅ Reducido de 3 a 2
+          return 2;
         }),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4), // ✅ Reducido de 8 a 6
-            side: BorderSide(
-              color: Colors.grey.shade300,
-              width: 1,
-            ), // ✅ Reducido de 1.5 a 1
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: Colors.grey.shade300, width: 1),
           ),
         ),
         padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(
-            horizontal: 2,
-            vertical: 4,
-          ), // ✅ Padding muy reducido
+          const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 16), // ✅ Reducido de 20 a 16
-          if (texto.isNotEmpty) const SizedBox(height: 2),
+          // 🔧 NUEVO: Mostrar spinner si está deshabilitado
+          if (estaDeshabilitado)
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          else
+            Icon(icono, size: 14),
+          if (texto.isNotEmpty) const SizedBox(height: 1),
           if (texto.isNotEmpty)
             Flexible(
               child: Text(
@@ -1729,7 +2018,7 @@ class _OrderPageState extends State<OrderPage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10, // ✅ Reducido de 15 a 10
+                  fontSize: 9,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -2661,69 +2950,46 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // 🟦 NUEVA FUNCIÓN: ENVIAR A TABLET CENTRAL (CLOUD)
+  // ---------------------------------------------------------------------------
   void _enviarComanda() {
-    // Contar productos NO enviados
+    // 1. Filtrar productos nuevos (no enviados aún)
     final productosNoEnviados = ordenes
         .where((item) => item['enviado'] != true)
         .toList();
 
     if (productosNoEnviados.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text("Sin productos nuevos"),
-            content: const Text("No hay productos nuevos para enviar a cocina"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Aceptar"),
-              ),
-            ],
-          );
-        },
+      _mostrarAlerta(
+        "Sin productos nuevos",
+        "No hay productos nuevos para enviar.",
       );
       return;
     }
 
-    final String numMesa = widget.numeroMesa.toString();
-    final int numComensales = widget.comensales;
+    // Generar folio interno
     final String numPedido =
         'CMA-${DateTime.now().millisecondsSinceEpoch % 10000}';
     mesaState.guardarFolioMesa(widget.numeroMesa, numPedido);
 
-    // Mostrar diálogo de confirmación
+    // 2. Mostrar diálogo de confirmación
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("📋 Confirmar envío de comanda"),
+          title: const Text("📤 Enviar a Cocina/Barra"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Se enviarán ${productosNoEnviados.length} producto(s) a cocina/barra:",
+                "Se enviarán ${productosNoEnviados.length} productos a la cola de impresión.",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
-              ...productosNoEnviados.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    "• ${item['cantidad']}x ${item['nombre']}",
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               const Text(
-                "⚠️ Una vez enviados, NO podrás modificar ni eliminar estos productos.",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
+                "La Tablet Central detectará este pedido e imprimirá los tickets correspondientes.",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
@@ -2734,131 +3000,11 @@ class _OrderPageState extends State<OrderPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(dialogContext);
-
-                // ✅ Separar productos por destino usando la extensión
-                final productosCocina = productosNoEnviados
-                    .where((p) => p.esCocina)
-                    .toList();
-                final productosBarra = productosNoEnviados
-                    .where((p) => p.esBarra)
-                    .toList();
-
-                try {
-                  // Guardar en Firestore
-                  if (productosCocina.isNotEmpty) {
-                    await _guardarOrdenCocina(
-                      id: '${numPedido}-COCINA',
-                      destino: 'cocina',
-                      productos: productosCocina,
-                    );
-                  }
-
-                  if (productosBarra.isNotEmpty) {
-                    await _guardarOrdenCocina(
-                      id: '${numPedido}-BARRA',
-                      destino: 'barra',
-                      productos: productosBarra,
-                    );
-                  }
-
-                  // ✅ IMPRESIÓN CON CLASIFICACIÓN DE IMPRESORAS
-                  if (productosCocina.isNotEmpty) {
-                    final String comandaCocina = _generarComandaTicket(
-                      productosAImprimir: productosCocina,
-                      numMesa: numMesa,
-                      numComensales: numComensales,
-                      destino: 'Cocina',
-                      numPedido: numPedido,
-                      mesaState: mesaState,
-                    );
-
-                    // 🖨️ IMPRIMIR EN IMPRESORA A (COCINA)
-                    await _printerManager.imprimirComanda(
-                      contenido: comandaCocina,
-                      tipo: TipoImpresora.cocina,
-                    );
-                    print('✅ Comanda de cocina enviada a Impresora A');
-                  }
-
-                  if (productosBarra.isNotEmpty) {
-                    final String comandaBarra = _generarComandaTicket(
-                      productosAImprimir: productosBarra,
-                      numMesa: numMesa,
-                      numComensales: numComensales,
-                      destino: 'Barra',
-                      numPedido: numPedido,
-                      mesaState: mesaState,
-                    );
-
-                    // 🖨️ IMPRIMIR EN IMPRESORA B (BARRA)
-                    await _printerManager.imprimirComanda(
-                      contenido: comandaBarra,
-                      tipo: TipoImpresora.barra,
-                    );
-                    print('✅ Comanda de barra enviada a Impresora B');
-                  }
-
-                  // Actualizar estado local
-                  setState(() {
-                    final alimentosEnviados = productosNoEnviados.map((item) {
-                      return {
-                        "nombre": item['nombre'],
-                        "cantidad": item['cantidad'],
-                        "precio": item['precio'],
-                        "nota": item['nota'] ?? "",
-                        "tiempo": item['tiempo'] ?? 1,
-                        "categoria": item['categoria'] ?? "General",
-                      };
-                    }).toList();
-
-                    mesaState.agregarPedido(
-                      widget.numeroMesa,
-                      alimentosEnviados,
-                    );
-
-                    for (var item in ordenes) {
-                      if (item['enviado'] != true) {
-                        item['enviado'] = true;
-                      }
-                    }
-                  });
-
-                  // Mostrar mensaje de éxito
-                  if (mounted) {
-                    String mensaje = "✅ Comanda $numPedido enviada a ";
-                    if (productosCocina.isNotEmpty &&
-                        productosBarra.isNotEmpty) {
-                      mensaje += "Cocina y Barra";
-                    } else if (productosCocina.isNotEmpty) {
-                      mensaje += "Cocina";
-                    } else {
-                      mensaje += "Barra";
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(mensaje),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  print('❌ Error al enviar comanda: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("❌ Error al enviar comanda: $e"),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                }
+                Navigator.pop(dialogContext); // Cerrar diálogo
+                await _procesarEnvioACola(productosNoEnviados, numPedido);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
               ),
               child: const Text("Enviar"),
@@ -2866,6 +3012,111 @@ class _OrderPageState extends State<OrderPage> {
           ],
         );
       },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🟧 LÓGICA DE SUBIDA A FIREBASE (COLA DE IMPRESIÓN)
+  // ---------------------------------------------------------------------------
+  Future<void> _procesarEnvioACola(
+    List<Map<String, dynamic>> productos,
+    String numPedido,
+  ) async {
+    try {
+      // A. Preparar datos limpios para Firebase
+      // Convertimos los datos para asegurarnos que van limpios (sin referencias raras)
+      final List<Map<String, dynamic>> listaParaNube = productos.map((item) {
+        return {
+          'nombre': item['nombre'],
+          'cantidad': item['cantidad'],
+          'precio': item['precio'],
+          'nota': item['nota'] ?? "",
+          'categoria': item['categoria'] ?? "General",
+          'tiempo': item['tiempo'] ?? 1,
+          // Helper para que la central sepa rápido si es barra
+          'esBarra': _esProductoDeBarra(item['categoria']),
+        };
+      }).toList();
+
+      // B. Subir a la colección 'tickets_pendientes'
+      // Esta es la colección que la Tablet Central estará escuchando
+      await FirebaseFirestore.instance.collection('tickets_pendientes').add({
+        'numeroMesa': widget.numeroMesa,
+        'comensales': widget.comensales,
+        'mesero': mesaState.meseroActual.isNotEmpty
+            ? mesaState.meseroActual
+            : 'Mesero',
+        'folio': numPedido,
+        'productos': listaParaNube,
+        'fecha': FieldValue.serverTimestamp(),
+        'impreso': false, // IMPORTANTE: La bandera para la central
+      });
+
+      // C. Actualizar UI Local (Ponerlos como enviados en la tablet del mesero)
+      setState(() {
+        // 1. Agregamos al historial de la mesa
+        mesaState.agregarPedido(widget.numeroMesa, listaParaNube);
+
+        // 2. Marcamos como enviados en la lista visual actual
+        for (var item in ordenes) {
+          if (item['enviado'] != true) {
+            item['enviado'] = true;
+          }
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.cloud_done, color: Colors.white),
+                SizedBox(width: 10),
+                Text("Pedido enviado a la Central Correctamente"),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error enviando a cola: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ Error de conexión: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper rápido para detectar barra (puedes ajustar las categorías aquí)
+  bool _esProductoDeBarra(String? categoria) {
+    if (categoria == null) return false;
+    final cat = categoria.toLowerCase();
+    return cat.contains('bebida') ||
+        cat.contains('cerveza') ||
+        cat.contains('cocteleria') ||
+        cat.contains('vinos') ||
+        cat.contains('tequila') ||
+        cat.contains('sin alcohol');
+  }
+
+  void _mostrarAlerta(String titulo, String mensaje) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(titulo),
+        content: Text(mensaje),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3623,6 +3874,66 @@ class _OrderPageState extends State<OrderPage> {
     );
   }
 
+  // 🔹 Registrar venta en caja según método de pago
+  Future<void> _registrarVentaEnCaja({
+    required String cuentaId,
+    required double total,
+    required String metodoPago,
+  }) async {
+    if (_cajaActualId == null) {
+      print('⚠️ No hay caja abierta, no se registrará la venta');
+      return;
+    }
+
+    try {
+      // Determinar categoría y campos según método de pago
+      String categoria;
+      Map<String, dynamic> updateData = {};
+
+      switch (metodoPago) {
+        case 'Tarjeta':
+          categoria = 'venta_tarjeta';
+          updateData['total_tarjeta'] = FieldValue.increment(total);
+          break;
+        case 'Transferencia':
+          categoria = 'venta_transferencia';
+          updateData['total_transferencia'] = FieldValue.increment(total);
+          break;
+        default: // 'Efectivo'
+          categoria = 'venta_efectivo';
+          updateData['total_efectivo'] = FieldValue.increment(total);
+          updateData['efectivo_esperado'] = FieldValue.increment(total);
+          break;
+      }
+
+      // 1. Registrar movimiento en movimientos_caja
+      await _firestore.collection('movimientos_caja').add({
+        'cajaId': _cajaActualId,
+        'cuentaId': cuentaId,
+        'fecha': FieldValue.serverTimestamp(),
+        'tipo': 'ingreso',
+        'categoria': categoria,
+        'monto': total,
+        'descripcion': 'Venta Mesa ${widget.numeroMesa} - $metodoPago',
+        'cajero': _cajeroNombre ?? 'Sistema',
+        'mesa': widget.numeroMesa.toString(),
+        'metodoPago': metodoPago,
+      });
+
+      // 2. Actualizar totales en el documento de caja
+      await _firestore
+          .collection('cajas')
+          .doc(_cajaActualId)
+          .update(updateData);
+
+      print(
+        '✅ Venta registrada en caja: \$${total.toStringAsFixed(2)} - $metodoPago',
+      );
+    } catch (e) {
+      print('❌ Error registrando venta en caja: $e');
+    }
+  }
+
   // 🔹 PASO 6: NUEVO MÉTODO - Registrar descuento en caja
   Future<void> _registrarDescuentoEnCaja({
     required String cuentaId,
@@ -3649,6 +3960,7 @@ class _OrderPageState extends State<OrderPage> {
         'mesa': widget.numeroMesa.toString(),
         'totalOriginal': descuentoInfo['total_original'],
         'totalConDescuento': descuentoInfo['total_con_descuento'],
+        'autorizadoPor': descuentoInfo['autorizado_por'] ?? 'Sin registrar',
       });
 
       // 2. Actualizar totales de caja
@@ -3671,6 +3983,19 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   Future<void> _cerrarCuentaYGenerarPdf() async {
+    if (_estaCerrandoCuenta) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⏳ Ya se está procesando el cierre de cuenta...'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _estaCerrandoCuenta = true);
+
     if (ordenes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -3729,14 +4054,48 @@ class _OrderPageState extends State<OrderPage> {
     double totalFinal = totalGeneral;
     Map<String, dynamic>? descuentoInfo;
 
-    // 2. Si desea descuento, mostrar diálogo
+    // 2. Si desea descuento, PRIMERO solicitar autorización de administrador
     if (aplicarDescuento) {
+      // ✅ NUEVO: Solicitar autorización ANTES de mostrar el diálogo de descuento
+      final autorizacion = await showDialog<Map<String, dynamic>?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AuthDialog(
+          titulo: 'Autorización Requerida',
+          mensaje:
+              'Se requiere autorización de administrador para aplicar descuentos.',
+        ),
+      );
+
+      // Si no se autorizó o canceló, regresar
+      if (autorizacion == null || autorizacion['autorizado'] != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Descuento no autorizado'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return; // Cancelar todo el proceso de cierre
+      }
+
+      // Obtener nombre del admin que autorizó
+      final String adminNombre = autorizacion['adminNombre'] ?? 'Administrador';
+      print('✅ Descuento autorizado por: $adminNombre');
+
+      // AHORA SÍ mostrar el diálogo de descuento
       descuentoInfo = await _mostrarDialogoDescuento(
         totalOriginal: totalGeneral,
         numeroMesa: widget.numeroMesa.toString(),
       );
 
-      if (descuentoInfo == null) return;
+      if (descuentoInfo == null) return; // Usuario canceló el descuento
+
+      // ✅ Agregar el nombre del admin al descuentoInfo
+      descuentoInfo['autorizado_por'] = adminNombre;
+
       totalFinal = descuentoInfo['total_con_descuento'];
     }
 
@@ -3824,7 +4183,13 @@ class _OrderPageState extends State<OrderPage> {
     final mesero = mesaState.meseroActual.isNotEmpty
         ? mesaState.meseroActual
         : 'Mesero Genérico';
-    final idCuenta = const Uuid().v4();
+
+    // ✅ Reusar el ID si ya se registró antes (reintento por fallo de impresión)
+    final idCuenta = _idCuentaActual ?? const Uuid().v4();
+    if (_idCuentaActual == null) {
+      setState(() => _idCuentaActual = idCuenta);
+    }
+
     final fechaCierre = DateTime.now();
     final fechaApertura = fechaCierre.subtract(const Duration(minutes: 60));
 
@@ -3839,7 +4204,7 @@ class _OrderPageState extends State<OrderPage> {
       };
     }).toList();
 
-    final totalItems = productosList.fold(
+    final totalItemsCuenta = productosList.fold(
       0,
       (sum, item) => sum + (item['cantidad'] as int),
     );
@@ -3852,7 +4217,7 @@ class _OrderPageState extends State<OrderPage> {
       fechaApertura: fechaApertura,
       fechaCierre: fechaCierre,
       productos: productosList,
-      totalItems: totalItems,
+      totalItems: totalItemsCuenta,
       totalCuenta: totalFinal,
       folio: mesaState.obtenerFolioMesa(widget.numeroMesa),
       descuentoAplicado: descuentoInfo != null ? true : null,
@@ -3865,18 +4230,180 @@ class _OrderPageState extends State<OrderPage> {
     );
 
     try {
-      // 5. Guardar cuenta en Firestore
+      // 5. Guardar cuenta en Firestore (merge:true para que reintento no duplique)
       await _firestore
           .collection('cuentasCerradas')
           .doc(idCuenta)
-          .set(cuentaCerrada.toMap());
+          .set(cuentaCerrada.toMap(), SetOptions(merge: true));
 
-      // 6. Registrar descuento en caja (si aplica)
-      if (descuentoInfo != null) {
-        await _registrarDescuentoEnCaja(
-          cuentaId: idCuenta,
-          descuentoInfo: descuentoInfo,
+      // 5b. Método de pago — solo preguntar si NO se ha registrado aún
+      String? metodoPago;
+      if (!_cuentaYaRegistradaEnCaja) {
+        metodoPago = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.payment, color: Colors.blue, size: 28),
+                SizedBox(width: 12),
+                Text('Método de Pago'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade50, Colors.green.shade100],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade300, width: 2),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Total a pagar:',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '\$${totalFinal.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  '¿Cómo pagará el cliente?',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.attach_money, size: 26),
+                    label: const Text(
+                      'Efectivo',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context, 'Efectivo'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.credit_card, size: 26),
+                    label: const Text(
+                      'Tarjeta',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context, 'Tarjeta'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.account_balance, size: 26),
+                    label: const Text(
+                      'Transferencia',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context, 'Transferencia'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
+
+        // Si canceló sin seleccionar método, abortar y limpiar
+        if (metodoPago == null) {
+          await _firestore.collection('cuentasCerradas').doc(idCuenta).delete();
+          setState(() {
+            _idCuentaActual = null; // resetear para próximo intento limpio
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  '❌ Cierre cancelado: debe seleccionar un método de pago',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        // ✅ Registrar en caja UNA SOLA VEZ
+        await _registrarVentaEnCaja(
+          cuentaId: idCuenta,
+          total: totalFinal,
+          metodoPago: metodoPago,
+        );
+
+        if (descuentoInfo != null) {
+          await _registrarDescuentoEnCaja(
+            cuentaId: idCuenta,
+            descuentoInfo: descuentoInfo,
+          );
+        }
+
+        // ✅ Marcar que la caja ya fue registrada
+        setState(() {
+          _cuentaYaRegistradaEnCaja = true;
+          _metodoPagoActual = metodoPago;
+        });
+      } else {
+        // 🔁 REINTENTO: la caja ya estaba registrada, solo informar
+        print(
+          'ℹ️ Reintento de impresión — caja ya registrada, saltando registro',
+        );
+        metodoPago = _metodoPagoActual;
       }
 
       // 7. Registrar en TurnoState
@@ -3885,18 +4412,12 @@ class _OrderPageState extends State<OrderPage> {
       // 8. Generar PDF
       final pdfBytes = await generateTicketPdf(cuentaCerrada);
 
-      // ══════════════════════════════════════════════════════════
-      // 🖨️ IMPRESION EN TERMICA CON LOGO
-      // ══════════════════════════════════════════════════════════
       try {
         print('\n🖨️ Iniciando impresion termica con logo...');
-
         await _imprimirTicketCompleto(cuentaCerrada, descuentoInfo);
-
         print('✅ Ticket impreso exitosamente con logo');
       } catch (e) {
         print('❌ Error en impresion termica: $e');
-
         if (mounted) {
           showDialog(
             context: context,
@@ -3966,7 +4487,7 @@ class _OrderPageState extends State<OrderPage> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'La cuenta se cerro correctamente',
+                              'La cuenta se cerró correctamente',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -3984,7 +4505,7 @@ class _OrderPageState extends State<OrderPage> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Podras ver e imprimir el PDF',
+                              'Podrás ver e imprimir el PDF',
                               style: TextStyle(fontSize: 12),
                             ),
                           ],
@@ -4015,6 +4536,13 @@ class _OrderPageState extends State<OrderPage> {
       // 10. Liberar mesa
       mesaState.liberarMesa(widget.numeroMesa);
 
+      // ✅ Resetear variables anti-duplicado DESPUÉS de éxito total
+      setState(() {
+        _cuentaYaRegistradaEnCaja = false;
+        _idCuentaActual = null;
+        _metodoPagoActual = null;
+      });
+
       // 11. Navegar
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4037,6 +4565,9 @@ class _OrderPageState extends State<OrderPage> {
           SnackBar(content: Text('Error al procesar el cierre de cuenta: $e')),
         );
       }
+    } finally {
+      // ✅ SIEMPRE desbloquear el botón al terminar (éxito o error)
+      if (mounted) setState(() => _estaCerrandoCuenta = false);
     }
   }
 
@@ -4154,7 +4685,14 @@ class _OrderPageState extends State<OrderPage> {
     }
 
     // TOTAL FINAL
-    buffer.writeln('TOTAL: ${formatCurrency.format(cuenta.totalCuenta)}');
+    // TOTAL FINAL - Grande con ESC/POS
+    buffer.writeln('================================');
+    buffer.write('\x1D\x21\x11'); // 🔠 Doble ancho + doble alto
+    buffer.writeln(centrarTexto('TOTAL:', ancho: 16));
+    buffer.writeln(
+      centrarTexto(formatCurrency.format(cuenta.totalCuenta), ancho: 16),
+    );
+    buffer.write('\x1D\x21\x00'); // 🔠 Volver a tamaño normal
     buffer.writeln('================================');
     buffer.writeln('   !GRACIAS POR SU VISITA!');
     buffer.writeln('================================');
@@ -4197,6 +4735,138 @@ class _OrderPageState extends State<OrderPage> {
     if (texto.length >= ancho) return texto;
     int espaciosIzq = (ancho - texto.length) ~/ 2;
     return ' ' * espaciosIzq + texto;
+  }
+
+  // Función para generar ticket de cancelación
+  String _generarTicketCancelacion({
+    required String nombreProducto,
+    required int cantidad,
+    required double total,
+    required String categoria,
+    required String autorizadoPor,
+    String? nota,
+  }) {
+    final buffer = StringBuffer();
+    final ahora = DateTime.now();
+
+    // Determinar si es cocina o barra
+    String destino = 'COCINA';
+    categoria = categoria.toLowerCase();
+    if (categoria.contains('bebida') ||
+        categoria.contains('cerveza') ||
+        categoria.contains('tequila') ||
+        categoria.contains('cocteleria') ||
+        categoria.contains('sin alcohol') ||
+        categoria.contains('vinos') ||
+        categoria.contains('whisky') ||
+        categoria.contains('brandy') ||
+        categoria.contains('mezcales')) {
+      destino = 'BARRA';
+    }
+
+    // ========================================
+    // ENCABEZADO
+    // ========================================
+    buffer.writeln('================================');
+    buffer.writeln(centrarTexto('*** CANCELACION ***'));
+    buffer.writeln(centrarTexto('PARRILLA VILLA'));
+    buffer.writeln('================================');
+
+    // INFORMACIÓN DEL TICKET
+    buffer.writeln('DESTINO: $destino');
+    buffer.writeln('MESA: ${widget.numeroMesa}');
+    buffer.writeln(
+      'MESERO: ${sinAcentos(mesaState.meseroActual ?? 'Sin mesero')}',
+    );
+    buffer.writeln('FECHA: ${DateFormat('dd/MM/yyyy HH:mm').format(ahora)}');
+    buffer.writeln('================================');
+
+    // PRODUCTO CANCELADO
+    buffer.writeln(centrarTexto('PRODUCTO CANCELADO'));
+    buffer.writeln('--------------------------------');
+    buffer.writeln('Cantidad: $cantidad');
+    buffer.writeln('Producto: ${sinAcentos(nombreProducto)}');
+    buffer.writeln('Total: \$${total.toStringAsFixed(2)}');
+
+    if (nota != null && nota.isNotEmpty) {
+      buffer.writeln('--------------------------------');
+      buffer.writeln('Nota:');
+      final notaSinAcentos = sinAcentos(nota);
+      if (notaSinAcentos.length > 30) {
+        buffer.writeln('  ${notaSinAcentos.substring(0, 30)}');
+        if (notaSinAcentos.length > 30) {
+          buffer.writeln('  ${notaSinAcentos.substring(30)}');
+        }
+      } else {
+        buffer.writeln('  $notaSinAcentos');
+      }
+    }
+
+    buffer.writeln('================================');
+    buffer.writeln('AUTORIZADO POR:');
+    buffer.writeln(centrarTexto(sinAcentos(autorizadoPor)));
+    buffer.writeln('================================');
+    buffer.writeln(centrarTexto('*** NO PREPARAR ***'));
+    buffer.writeln('================================');
+    buffer.writeln('');
+    buffer.writeln('');
+
+    return buffer.toString();
+  }
+
+  // Función para imprimir ticket de cancelación
+  Future<void> _imprimirTicketCancelacion({
+    required String nombreProducto,
+    required int cantidad,
+    required double total,
+    required String categoria,
+    required String autorizadoPor,
+    String? nota,
+  }) async {
+    try {
+      final ticketTexto = _generarTicketCancelacion(
+        nombreProducto: nombreProducto,
+        cantidad: cantidad,
+        total: total,
+        categoria: categoria,
+        autorizadoPor: autorizadoPor,
+        nota: nota,
+      );
+
+      // ✅ Determinar a qué impresora mandar según la categoría
+      final categoriaLower = categoria.toLowerCase();
+      final bool esBarra =
+          categoriaLower.contains('bebida') ||
+          categoriaLower.contains('cerveza') ||
+          categoriaLower.contains('tequila') ||
+          categoriaLower.contains('cocteleria') ||
+          categoriaLower.contains('sin alcohol') ||
+          categoriaLower.contains('vinos') ||
+          categoriaLower.contains('whisky') ||
+          categoriaLower.contains('brandy') ||
+          categoriaLower.contains('mezcales');
+
+      final tipoImpresora = esBarra
+          ? TipoImpresora.barra
+          : TipoImpresora.cocina;
+
+      await _printerManager.imprimirDirecto(ticketTexto, tipoImpresora);
+
+      print(
+        '✅ Ticket de cancelación impreso en ${esBarra ? "BARRA" : "COCINA"}',
+      );
+    } catch (e) {
+      print('❌ Error al imprimir ticket de cancelación: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ No se pudo imprimir el ticket: $e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   // Agregar este método en la clase _OrderPageState

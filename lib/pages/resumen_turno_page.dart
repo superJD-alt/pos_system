@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:pos_system/pages/turno_state.dart';
 import 'package:pos_system/models/cuenta_cerrada.dart';
 import 'package:pos_system/pages/mesa_state.dart';
+import 'package:pos_system/pages/pdf_generator.dart';
+import 'package:pos_system/models/printer_manager.dart';
+import 'package:printing/printing.dart';
+import 'dart:typed_data';
+import 'package:intl/intl.dart';
+import 'package:pos_system/models/ticket_generator.dart';
 
 class ResumenTurnoPage extends StatefulWidget {
   const ResumenTurnoPage({super.key});
@@ -13,6 +19,7 @@ class ResumenTurnoPage extends StatefulWidget {
 class _ResumenTurnoPageState extends State<ResumenTurnoPage> {
   final turnoState = TurnoState();
   final mesaState = MesaState();
+  final PrinterManager _printerManager = PrinterManager();
 
   @override
   Widget build(BuildContext context) {
@@ -492,6 +499,38 @@ class _ResumenTurnoPageState extends State<ResumenTurnoPage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                const Divider(),
+                // ✅ BOTONES DE ACCIÓN PARA REIMPRIMIR
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _reimprimirTicket(cuenta),
+                        icon: const Icon(Icons.print, size: 18),
+                        label: const Text('Reimprimir'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _verTicketCompleto(cuenta),
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Ver Detalle'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -576,6 +615,170 @@ class _ResumenTurnoPageState extends State<ResumenTurnoPage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ✅ MÉTODO PARA REIMPRIMIR DIRECTAMENTE A LA IMPRESORA DE BARRA/TICKETS
+  // ✅ MÉTODO PARA REIMPRIMIR DIRECTAMENTE A LA IMPRESORA DE BARRA/TICKETS
+  Future<void> _reimprimirTicket(CuentaCerrada cuenta) async {
+    try {
+      await _printerManager.cargarConfiguracion();
+
+      if (!_printerManager.estaConectada(TipoImpresora.barra)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '⚠️ La impresora de tickets/barra no está configurada',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // ✅ Reconstruir descuentoInfo desde los campos de CuentaCerrada
+      Map<String, dynamic>? descuentoInfo;
+      if (cuenta.descuentoAplicado == true &&
+          cuenta.descuentoMonto != null &&
+          cuenta.descuentoMonto! > 0) {
+        descuentoInfo = {
+          'monto_descuento': cuenta.descuentoMonto,
+          'total_original': cuenta.totalOriginal ?? cuenta.totalCuenta,
+          'categoria_descuento': cuenta.descuentoCategoria ?? 'Aplicado',
+          'tipo_descuento': cuenta.descuentoTipo ?? 'porcentaje',
+          'valor_descuento': cuenta.descuentoValor ?? 0,
+          'razon': cuenta.descuentoRazon ?? '',
+        };
+      }
+
+      // ✅ Usar el generador compartido con sello de REIMPRESION
+      final contenidoTicket = generarTicketCuenta(
+        cuenta: cuenta,
+        descuentoInfo: descuentoInfo,
+        esReimpresion: true,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      // ✅ Usar imprimirTicketCuenta igual que order.dart
+      await _printerManager.imprimirTicketCuenta(contenido: contenidoTicket);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✓ Ticket de Mesa ${cuenta.numeroMesa} enviado a imprimir',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al reimprimir: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ MÉTODO PARA VER TICKET COMPLETO CON VISTA PREVIA
+  Future<void> _verTicketCompleto(CuentaCerrada cuenta) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+      final pdfBytes = await generateTicketPdf(cuenta);
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        await _mostrarDialogoTicketReimpresion(pdfBytes, cuenta);
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar ticket: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ MÉTODO PARA MOSTRAR DIÁLOGO CON VISTA PREVIA DEL TICKET
+  Future<void> _mostrarDialogoTicketReimpresion(
+    Uint8List pdfBytes,
+    CuentaCerrada cuenta,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Center(
+            child: Column(
+              children: [
+                Text(
+                  'Ticket Mesa ${cuenta.numeroMesa}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  DateFormat('dd/MM/yyyy HH:mm').format(cuenta.fechaCierre),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          content: SizedBox(
+            width: 600,
+            height: 700,
+            child: PdfPreview(
+              build: (format) => pdfBytes,
+              allowPrinting: true,
+              allowSharing: true,
+              maxPageWidth: 700,
+              pdfFileName:
+                  'Ticket_Mesa_${cuenta.numeroMesa}_${cuenta.fechaCierre.millisecondsSinceEpoch}.pdf',
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              actions: [
+                PdfPreviewAction(
+                  icon: const Icon(Icons.print),
+                  onPressed: (context, build, pageFormat) async {
+                    final pdfBytes = await build(pageFormat);
+                    await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cerrar', style: TextStyle(fontSize: 16)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 

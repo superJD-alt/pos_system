@@ -41,33 +41,60 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Future<void> _loadCurrentUser() async {
+    debugPrint('🚀 Iniciando carga de usuario actual...');
+
     _currentUser = FirebaseAuth.instance.currentUser;
     if (_currentUser == null) {
+      debugPrint('❌ No hay usuario autenticado');
       setState(() => _cargando = false);
       return;
     }
 
+    debugPrint('👤 Usuario autenticado: ${_currentUser!.email}');
+    debugPrint('🆔 UID: ${_currentUser!.uid}');
+
     try {
-      final userDoc = await _firestore
+      // ✅ BUSCAR por campo 'uid' en lugar de por ID del documento
+      debugPrint('🔍 Buscando en Firestore por uid: ${_currentUser!.uid}');
+
+      QuerySnapshot query = await _firestore
           .collection('usuarios')
-          .doc(_currentUser!.uid)
+          .where('uid', isEqualTo: _currentUser!.uid)
+          .limit(1)
           .get();
 
-      if (userDoc.exists) {
+      debugPrint('📊 Documentos encontrados: ${query.docs.length}');
+
+      if (query.docs.isNotEmpty) {
+        final userDoc = query.docs.first;
+        final data = userDoc.data() as Map<String, dynamic>;
+
+        debugPrint('📄 Datos encontrados:');
+        debugPrint('   - nombre: ${data['nombre']}');
+        debugPrint('   - rol: ${data['rol']}');
+        debugPrint('   - email: ${data['email']}');
+
         setState(() {
           _currentUserName =
-              userDoc.get('nombre') ?? 'Cajero ID: ${_currentUser!.uid}';
-          _currentUserRole = (userDoc.data()?['rol'] as String?)?.toLowerCase();
+              data['nombre'] ?? 'Cajero ID: ${_currentUser!.uid}';
+          _currentUserRole = (data['rol'] as String?)?.toLowerCase();
         });
+
+        debugPrint('✅ Usuario cargado correctamente');
+        debugPrint('   - Nombre: $_currentUserName');
+        debugPrint('   - Rol (minúsculas): $_currentUserRole');
       } else {
+        debugPrint('⚠️ No se encontró documento con uid: ${_currentUser!.uid}');
         setState(() {
           _currentUserName = 'Cajero ID: ${_currentUser!.uid}';
+          _currentUserRole = 'unknown';
         });
       }
     } catch (e) {
-      print('Error al cargar datos del usuario actual: $e');
+      debugPrint('❌ Error al cargar datos del usuario: $e');
       setState(() {
         _currentUserName = 'Error Cargando Nombre';
+        _currentUserRole = 'unknown';
       });
     }
   }
@@ -135,7 +162,15 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Future<void> _mostrarDialogoAperturaCaja() async {
+    debugPrint('==========================================');
+    debugPrint('🔍 Intentando abrir caja...');
+    debugPrint('   - Usuario: $_currentUserName');
+    debugPrint('   - Rol: $_currentUserRole');
+    debugPrint('   - UID: ${_currentUser?.uid}');
+    debugPrint('==========================================');
+
     if (_currentUser == null || _currentUserName == null) {
+      debugPrint('❌ Error: Usuario o nombre es null');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -148,18 +183,23 @@ class _CajaScreenState extends State<CajaScreen> {
       return;
     }
 
+    // ✅ VALIDAR ROL (ahora en minúsculas)
     if (_currentUserRole != 'administrador' && _currentUserRole != 'cajero') {
+      debugPrint('❌ Acceso denegado - Rol no autorizado: "$_currentUserRole"');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            '🚫 Solo administradores y cajeros pueden abrir la caja.',
+            '🚫 Solo administradores y cajeros pueden abrir la caja.\n'
+            'Tu rol actual es: "$_currentUserRole"',
           ),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 5),
         ),
       );
       return;
     }
+
+    debugPrint('✅ Acceso autorizado - Mostrando diálogo de apertura');
 
     final formKey = GlobalKey<FormState>();
     final fondoController = TextEditingController(text: '1000');
@@ -193,12 +233,14 @@ class _CajaScreenState extends State<CajaScreen> {
                       children: [
                         const Icon(Icons.person, color: Colors.blue),
                         const SizedBox(width: 8),
-                        Text(
-                          'Cajero de Apertura: $_currentUserName',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                        Expanded(
+                          child: Text(
+                            'Cajero: $_currentUserName',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
                           ),
                         ),
                       ],
@@ -737,7 +779,12 @@ class _CajaScreenState extends State<CajaScreen> {
     final efectivoContadoController = TextEditingController();
     final notasController = TextEditingController();
 
-    String? usuarioCierreId = _currentUser!.uid;
+    // ✅ Solo preseleccionar el usuario actual si existe en la lista autorizada
+    final uidActual = _currentUser!.uid;
+    String? usuarioCierreId =
+        _usuariosAutorizados.any((u) => u['id'] == uidActual)
+        ? uidActual
+        : null;
 
     final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
 
@@ -1096,7 +1143,12 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  Widget _buildInfoCard(String title, String value, Color color) {
+  Widget _buildInfoCard(
+    String title,
+    String value,
+    Color color, {
+    IconData? icon,
+  }) {
     return Card(
       elevation: 2,
       child: Padding(
@@ -1104,9 +1156,17 @@ class _CajaScreenState extends State<CajaScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: color, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -1132,14 +1192,16 @@ class _CajaScreenState extends State<CajaScreen> {
     final total_transferencia = _cajaActual!['total_transferencia'] ?? 0.0;
     final total_propinas = _cajaActual!['total_propinas'] ?? 0.0;
     final total_egresos = _cajaActual!['total_egresos'] ?? 0.0;
-    final total_descuentos = _cajaActual!['total_descuentos'] ?? 0.0; // ✅ NUEVO
+    final total_descuentos = _cajaActual!['total_descuentos'] ?? 0.0;
     final efectivo_esperado = _cajaActual!['efectivo_esperado'] ?? 0.0;
 
+    // Ingresos totales = efectivo + tarjeta + transferencia + propinas
     final total_ingresos =
         total_efectivo + total_tarjeta + total_transferencia + total_propinas;
 
     return Column(
       children: [
+        // ── Fila superior: Fondo Inicial | Ingresos Totales ──
         Row(
           children: [
             Expanded(
@@ -1147,6 +1209,7 @@ class _CajaScreenState extends State<CajaScreen> {
                 'Fondo Inicial',
                 currencyFormat.format(fondo_inicial),
                 Colors.blue.shade600,
+                icon: Icons.account_balance_wallet,
               ),
             ),
             Expanded(
@@ -1154,11 +1217,45 @@ class _CajaScreenState extends State<CajaScreen> {
                 'Ingresos Totales',
                 currencyFormat.format(total_ingresos),
                 Colors.green.shade600,
+                icon: Icons.trending_up,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
+
+        // ── Fila de desglose por método de pago ──
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                'Efectivo',
+                currencyFormat.format(total_efectivo),
+                Colors.green.shade700,
+                icon: Icons.attach_money,
+              ),
+            ),
+            Expanded(
+              child: _buildInfoCard(
+                'Tarjeta',
+                currencyFormat.format(total_tarjeta),
+                Colors.blue.shade700,
+                icon: Icons.credit_card,
+              ),
+            ),
+            Expanded(
+              child: _buildInfoCard(
+                'Transferencia',
+                currencyFormat.format(total_transferencia),
+                Colors.purple.shade700,
+                icon: Icons.account_balance,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // ── Fila inferior: Efectivo Esperado | Egresos Totales ──
         Row(
           children: [
             Expanded(
@@ -1166,6 +1263,7 @@ class _CajaScreenState extends State<CajaScreen> {
                 'Efectivo Esperado',
                 currencyFormat.format(efectivo_esperado),
                 Colors.red.shade600,
+                icon: Icons.calculate,
               ),
             ),
             Expanded(
@@ -1173,11 +1271,13 @@ class _CajaScreenState extends State<CajaScreen> {
                 'Egresos Totales',
                 currencyFormat.format(total_egresos),
                 Colors.orange.shade600,
+                icon: Icons.trending_down,
               ),
             ),
           ],
         ),
-        // ✅ NUEVO: Mostrar total de descuentos
+
+        // ── Descuentos (solo si hay) ──
         if (total_descuentos > 0) ...[
           const SizedBox(height: 16),
           Row(
@@ -1187,6 +1287,7 @@ class _CajaScreenState extends State<CajaScreen> {
                   'Descuentos Aplicados',
                   currencyFormat.format(total_descuentos),
                   Colors.purple.shade600,
+                  icon: Icons.discount,
                 ),
               ),
             ],

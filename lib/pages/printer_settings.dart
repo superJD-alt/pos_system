@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pos_system/models/welirkca_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart'; // ✅ AGREGAR
 
 class PrinterSettingsPage extends StatefulWidget {
   const PrinterSettingsPage({Key? key}) : super(key: key);
@@ -18,7 +19,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   String? _connectedPrinterId;
   String? _connectedPrinterName;
 
-  // Para WiFi
   final TextEditingController _ipController = TextEditingController();
 
   @override
@@ -55,6 +55,226 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     };
   }
 
+  Future<void> _ejecutarDiagnostico() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Ejecutando diagnóstico...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final resultado = await _printer.diagnosticar();
+      Navigator.pop(context);
+
+      // Mostrar resultados en un diálogo
+      _mostrarResultadosDiagnostico(resultado);
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error en diagnóstico: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _mostrarResultadosDiagnostico(Map<String, dynamic> resultado) {
+    final permisos = resultado['permisos'] as Map<String, dynamic>?;
+    final btEncendido = resultado['bluetoothEncendido'] ?? false;
+    final dispositivosEmparejados = resultado['dispositivosEmparejados'] ?? 0;
+
+    final problemas = <String>[];
+    if (permisos != null) {
+      if (!permisos['bluetoothScan']) {
+        problemas.add('Falta permiso BLUETOOTH_SCAN');
+      }
+      if (!permisos['bluetoothConnect']) {
+        problemas.add('Falta permiso BLUETOOTH_CONNECT');
+      }
+    }
+    if (!btEncendido) {
+      problemas.add('Bluetooth está apagado');
+    }
+    if (dispositivosEmparejados == 0) {
+      problemas.add('No hay impresoras emparejadas');
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              problemas.isEmpty ? Icons.check_circle : Icons.warning,
+              color: problemas.isEmpty ? Colors.green : Colors.orange,
+            ),
+            const SizedBox(width: 10),
+            const Text('Diagnóstico'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDiagnosticoItem(
+                'Plataforma',
+                resultado['plataforma'] ?? 'Desconocida',
+                true,
+              ),
+              const Divider(),
+              const Text(
+                'Permisos:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (permisos != null) ...[
+                _buildDiagnosticoItem(
+                  'BLUETOOTH_SCAN',
+                  permisos['bluetoothScan'] ? 'Otorgado' : 'NO otorgado',
+                  permisos['bluetoothScan'],
+                ),
+                _buildDiagnosticoItem(
+                  'BLUETOOTH_CONNECT',
+                  permisos['bluetoothConnect'] ? 'Otorgado' : 'NO otorgado',
+                  permisos['bluetoothConnect'],
+                ),
+                _buildDiagnosticoItem(
+                  'LOCATION',
+                  permisos['location'] ? 'Otorgado' : 'NO otorgado',
+                  permisos['location'],
+                ),
+              ],
+              const Divider(),
+              _buildDiagnosticoItem(
+                'Bluetooth',
+                btEncendido ? 'Encendido' : 'APAGADO',
+                btEncendido,
+              ),
+              _buildDiagnosticoItem(
+                'Dispositivos emparejados',
+                '$dispositivosEmparejados',
+                dispositivosEmparejados > 0,
+              ),
+              if (problemas.isNotEmpty) ...[
+                const Divider(),
+                const Text(
+                  '⚠️ Problemas detectados:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...problemas.map(
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(left: 8, bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 16,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(p, style: const TextStyle(fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '💡 Soluciones:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (!btEncendido)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, bottom: 4),
+                    child: Text(
+                      '• Enciende el Bluetooth en Configuración',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                if (dispositivosEmparejados == 0)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, bottom: 4),
+                    child: Text(
+                      '• Ve a Configuración → Bluetooth y empareja tu impresora primero',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                if (permisos != null &&
+                    (!permisos['bluetoothScan'] ||
+                        !permisos['bluetoothConnect']))
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, bottom: 4),
+                    child: Text(
+                      '• Presiona "Buscar Impresoras" y acepta los permisos',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          if (!btEncendido)
+            TextButton(
+              onPressed: () {
+                openAppSettings();
+                Navigator.pop(context);
+              },
+              child: const Text('Abrir Configuración'),
+            ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticoItem(String label, String valor, bool ok) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            ok ? Icons.check_circle : Icons.cancel,
+            color: ok ? Colors.green : Colors.red,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('$label: ', style: const TextStyle(fontSize: 13)),
+          ),
+          Text(
+            valor,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: ok ? Colors.green : Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadSavedPrinter() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -81,14 +301,131 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     await prefs.remove('printer_name');
   }
 
+  // ✅ NUEVO: Solicitar permisos de Bluetooth
+  Future<bool> _solicitarPermisosBluetooth() async {
+    print('\n🔐 Verificando permisos de Bluetooth...');
+
+    // Verificar si ya están otorgados
+    final scanGranted = await Permission.bluetoothScan.isGranted;
+    final connectGranted = await Permission.bluetoothConnect.isGranted;
+
+    print(
+      '   - BLUETOOTH_SCAN: ${scanGranted ? "✅ Otorgado" : "❌ No otorgado"}',
+    );
+    print(
+      '   - BLUETOOTH_CONNECT: ${connectGranted ? "✅ Otorgado" : "❌ No otorgado"}',
+    );
+
+    if (scanGranted && connectGranted) {
+      print('✅ Todos los permisos ya están otorgados');
+      return true;
+    }
+
+    // Solicitar permisos
+    print('📋 Solicitando permisos al usuario...');
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+
+    print('\n📊 Resultados de la solicitud:');
+    statuses.forEach((permission, status) {
+      print('   - ${permission.toString()}: ${status.toString()}');
+    });
+
+    bool todosOtorgados = statuses.values.every((status) => status.isGranted);
+
+    if (!todosOtorgados) {
+      print('❌ No se otorgaron todos los permisos');
+
+      if (mounted) {
+        // Verificar si algún permiso fue denegado permanentemente
+        final scanDenied = await Permission.bluetoothScan.isPermanentlyDenied;
+        final connectDenied =
+            await Permission.bluetoothConnect.isPermanentlyDenied;
+
+        if (scanDenied || connectDenied) {
+          _mostrarDialogoConfiguracion();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '⚠️ Se necesitan permisos de Bluetooth para buscar impresoras',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } else {
+      print('✅ Todos los permisos otorgados correctamente');
+    }
+
+    return todosOtorgados;
+  }
+
+  // ✅ NUEVO: Mostrar diálogo para ir a configuración
+  void _mostrarDialogoConfiguracion() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.settings, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Permisos Requeridos'),
+          ],
+        ),
+        content: const Text(
+          'Los permisos de Bluetooth fueron denegados permanentemente.\n\n'
+          'Para usar esta función, debes habilitar los permisos manualmente en la configuración de la app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              openAppSettings();
+              Navigator.pop(context);
+            },
+            child: const Text('Abrir Configuración'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _scanForPrinters() async {
+    print('\n════════════════════════════════════');
+    print('🔍 INICIANDO ESCANEO DE IMPRESORAS');
+    print('════════════════════════════════════');
+
+    // ✅ 1. Solicitar permisos PRIMERO
+    final permisosOk = await _solicitarPermisosBluetooth();
+    if (!permisosOk) {
+      print('❌ No hay permisos, cancelando escaneo');
+      return;
+    }
+
+    // ✅ 2. Iniciar escaneo
     setState(() {
       _isScanning = true;
       _printers.clear();
     });
 
     try {
+      print('\n📡 Llamando a scanPrinters()...');
       final printers = await _printer.scanPrinters();
+
+      print('\n📋 Resultado del escaneo:');
+      print('   Total encontradas: ${printers.length}');
+      for (var p in printers) {
+        print('   - ${p['name']} (${p['id']})');
+      }
+
       setState(() {
         _printers = printers;
         _isScanning = false;
@@ -98,22 +435,35 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '⚠️ No se encontraron impresoras. Verifica que el Bluetooth esté encendido.',
+              '⚠️ No se encontraron impresoras. Verifica que el Bluetooth esté encendido y las impresoras estén en modo de emparejamiento.',
             ),
             backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${_printers.length} impresora(s) encontrada(s)'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
+      print('\n❌ ERROR en escaneo: $e');
       setState(() => _isScanning = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error al buscar impresoras: $e'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
     }
+
+    print('════════════════════════════════════\n');
   }
 
   Future<void> _connectToPrinter(String deviceId, String deviceName) async {
@@ -125,7 +475,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
     try {
       final success = await _printer.connectBluetooth(deviceId);
-      Navigator.pop(context); // Cerrar loading
+      Navigator.pop(context);
 
       if (success) {
         setState(() {
@@ -142,7 +492,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         );
       }
     } catch (e) {
-      Navigator.pop(context); // Cerrar loading
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error al conectar: $e'),
@@ -226,50 +576,17 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
     try {
       print('🖨️ Iniciando impresión de prueba...');
-
-      // 1. Configurar ancho para 58mm
       await _printer.setPrintWidth(384);
-      print('✅ Ancho configurado: 384 (58mm)');
-
-      // 2. Usar printTextImage en lugar de printText (más confiable)
-      await _printer.printTextImage("================================\n");
-      await _printer.printTextImage("    PRUEBA DE IMPRESORA\n");
-      await _printer.printTextImage("================================\n");
-      await _printer.printTextImage("\n");
-
-      await _printer.printTextImage("Esta es una impresion de\n");
-      await _printer.printTextImage("prueba para verificar que\n");
-      await _printer.printTextImage("la impresora funciona OK.\n");
-      await _printer.printTextImage("\n");
-
-      await _printer.printTextImage("--------------------------------\n");
-      final now = DateTime.now();
-      await _printer.printTextImage(
-        "Fecha: ${now.day}/${now.month}/${now.year}\n",
-      );
-      await _printer.printTextImage(
-        "Hora: ${now.hour}:${now.minute.toString().padLeft(2, '0')}\n",
-      );
-      await _printer.printTextImage("--------------------------------\n");
-      await _printer.printTextImage("\n");
-
-      await _printer.printTextImage("Si puedes leer esto,\n");
-      await _printer.printTextImage("la impresora funciona bien!\n");
-      await _printer.printTextImage("\n");
-      await _printer.printTextImage("================================\n");
-
-      // 3. Saltos de línea adicionales antes de cortar
-      await _printer.printTextImage("\n\n\n");
-
-      print('✅ Texto enviado');
-
-      // 4. Cortar papel
+      await _printer.printText("================================\n");
+      await _printer.printText("    PRUEBA DE IMPRESORA\n");
+      await _printer.printText("================================\n");
+      await _printer.printText("\n");
+      await _printer.printText("Esta es una impresion de\n");
+      await _printer.printText("prueba para verificar que\n");
+      await _printer.printText("la impresora funciona OK.\n");
+      await _printer.printText("\n\n\n");
       await _printer.cutPaper();
-      print('✅ Papel cortado');
-
-      // 5. Beep
       await _printer.beep();
-      print('✅ Beep enviado');
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -302,7 +619,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     try {
       print('🔧 Ejecutando auto-test del SDK...');
       await _printer.selfTest();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Auto-test ejecutado'),
@@ -330,12 +646,19 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Estado actual
             _buildStatusCard(),
-
             const SizedBox(height: 24),
-
-            // Tabs para Bluetooth y WiFi
+            ElevatedButton.icon(
+              onPressed: _ejecutarDiagnostico,
+              icon: const Icon(Icons.medical_services),
+              label: const Text('🔧 EJECUTAR DIAGNÓSTICO'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 16),
             DefaultTabController(
               length: 2,
               child: Column(
@@ -358,12 +681,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Botones de acción
             if (_isConnected) ...[
-              // Botón de auto-test del SDK
               ElevatedButton.icon(
                 onPressed: _printSelfTest,
                 icon: const Icon(Icons.build),
@@ -375,8 +694,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Botón de prueba normal
               ElevatedButton.icon(
                 onPressed: _printTest,
                 icon: const Icon(Icons.print),
@@ -388,7 +705,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                 ),
               ),
               const SizedBox(height: 12),
-
               OutlinedButton.icon(
                 onPressed: _disconnect,
                 icon: const Icon(Icons.close),
@@ -467,9 +783,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
               padding: const EdgeInsets.all(16),
             ),
           ),
-
           const SizedBox(height: 16),
-
           if (_printers.isEmpty && !_isScanning)
             Center(
               child: Column(
@@ -488,14 +802,12 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                 ],
               ),
             ),
-
           Expanded(
             child: ListView.builder(
               itemCount: _printers.length,
               itemBuilder: (context, index) {
                 final printer = _printers[index];
                 final isSelected = printer['id'] == _connectedPrinterId;
-
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   color: isSelected ? Colors.green.shade50 : null,
@@ -539,7 +851,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-
           TextField(
             controller: _ipController,
             decoration: InputDecoration(
@@ -552,9 +863,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
             ),
             keyboardType: TextInputType.number,
           ),
-
           const SizedBox(height: 16),
-
           ElevatedButton.icon(
             onPressed: _connectWifi,
             icon: const Icon(Icons.wifi),
@@ -565,9 +874,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
               padding: const EdgeInsets.all(16),
             ),
           ),
-
           const SizedBox(height: 16),
-
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
