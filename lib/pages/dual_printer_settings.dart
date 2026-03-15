@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════════
-// ARCHIVO: lib/pages/dual_printer_settings.dart
-// Pantalla para configurar ambas impresoras (Cocina y Barra)
-// ═══════════════════════════════════════════════════════════════
-
 import 'package:flutter/material.dart';
 import 'package:pos_system/models/printer_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
